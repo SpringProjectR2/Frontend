@@ -1,6 +1,6 @@
 import { Text, View } from "react-native";
 
-import Sensor from "@/components/Sensor"
+import Sensor from "@/src/components/Sensor"
 
 export default function Sensors() {
   return (
