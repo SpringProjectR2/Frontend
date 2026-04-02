@@ -24,7 +24,7 @@ Add to PATH
 - `C:\Android\Sdk\platform-tools`
 
 ```bash
-sdkmanager "platform-tools" "platforms;android-36" "build-tools;36.0.0" "ndk;27.1.12297006"
+sdkmanager "platform-tools" "platforms;android-36" "build-tools;36.0.0" "build-tools;35.0.0" "ndk;27.1.12297006"
 sdkmanager --licenses
 ```
 
