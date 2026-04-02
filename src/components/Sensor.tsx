@@ -1,14 +1,44 @@
 import { Link } from 'expo-router';
-import { View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
+import { CartesianChart, Line } from 'victory-native';
+import { useSensorData } from '@/src/lib/sensorData';
 
 type Props = {
   label: string;
 };
 
 export default function Sensor({ label }: Props) {
+  const data = useSensorData(label);
+
+  const currentValue = data[data.length - 1]?.value ?? 0;
+
   return (
-    <View>
-        <Link href="/sensor">{label}</Link>
-    </View>
+    <Link href={{ pathname: '/sensor', params: { label } }} asChild>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`Open details for ${label}`}
+        style={({ pressed }) => [{ opacity: pressed ? 0.75 : 1 }]}
+      >
+        <View style={{ height: 180 }}>
+          <View style={{ paddingHorizontal: 8, paddingTop: 4, paddingBottom: 8 }}>
+            <Text style={{ fontSize: 16, fontWeight: '600' }}>{label}</Text>
+            <Text style={{ fontSize: 14, color: '#666' }}>
+              {currentValue.toFixed(1)} °C
+            </Text>
+          </View>
+          <View style={{ flex: 1 }}>
+            <CartesianChart
+              data={data}
+              xKey="timestamp"
+              yKeys={["value"]}
+            >
+              {({ points }) => (
+                <Line points={points.value} color="red" strokeWidth={3} />
+              )}
+            </CartesianChart>
+          </View>
+        </View>
+      </Pressable>
+    </Link>
   );
 }
