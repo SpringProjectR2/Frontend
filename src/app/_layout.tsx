@@ -14,6 +14,7 @@ function RootNavigator() {
       </Stack.Protected>
       <Stack.Protected guard={isLoggedIn}>
         <Stack.Screen name="(private)/(tabs)" options={{ headerShown: false }} />
+        <Stack.Screen name="(private)/sensor" options={{ title: "Sensor" }} />
       </Stack.Protected>
     </Stack>
   );
