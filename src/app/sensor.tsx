@@ -44,6 +44,28 @@ export default function Sensor() {
           )}
         </CartesianChart>
       </View>
+
+      <View style={{ marginTop: 16, borderWidth: 1, borderColor: "#ddd" }}>
+        <View style={{ flexDirection: "row", backgroundColor: "#f6f6f6" }}>
+          <Text style={{ flex: 1, padding: 8, fontWeight: "600" }}>Time</Text>
+          <Text style={{ width: 100, padding: 8, fontWeight: "600" }}>Value</Text>
+        </View>
+        {data.map((point, index) => (
+          <View
+            key={`${point.timestamp}-${index}`}
+            style={{
+              flexDirection: "row",
+              borderTopWidth: 1,
+              borderTopColor: "#eee",
+            }}
+          >
+            <Text style={{ flex: 1, padding: 8 }}>
+              {formatUnixTimeLabel(point.timestamp)}
+            </Text>
+            <Text style={{ width: 100, padding: 8 }}>{point.value}</Text>
+          </View>
+        ))}
+      </View>
     </ScrollView>
   );
 }

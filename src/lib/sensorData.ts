@@ -53,7 +53,7 @@ const pushNextReading = (label: string) => {
     value: nextValue,
   };
 
-  const updated = [...series.slice(-59), nextReading];
+  const updated = [...series, nextReading];
   sensorSeries.set(label, updated);
   notify(label);
 };
