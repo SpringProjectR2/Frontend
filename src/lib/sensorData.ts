@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { subscribeSensorStream } from "@/src/lib/socketService";
 
 export type Reading = {
   timestamp: number;
@@ -6,22 +7,9 @@ export type Reading = {
 };
 
 const sensorSeries = new Map<string, Reading[]>();
-const sensorIntervals = new Map<string, ReturnType<typeof setInterval>>();
 const listenersBySensor = new Map<string, Set<() => void>>();
-
-const DEFAULT_BASE_VALUE = 25;
-const SENSOR_BASE_VALUES: Record<string, number> = {
-  Sensor1: 25,
-  Sensor2: 21,
-};
-
-const getBaseValue = (label: string) =>
-  SENSOR_BASE_VALUES[label] ?? DEFAULT_BASE_VALUE;
-
-const createSeedReading = (label: string): Reading => ({
-  timestamp: Math.floor(Date.now() / 1000),
-  value: getBaseValue(label),
-});
+const socketUnsubscribeBySensor = new Map<string, () => void>();
+const MAX_POINTS = 240;
 
 const getSeries = (label: string): Reading[] => {
   const existing = sensorSeries.get(label);
@@ -29,7 +17,7 @@ const getSeries = (label: string): Reading[] => {
     return existing;
   }
 
-  const seeded = [createSeedReading(label)];
+  const seeded: Reading[] = [];
   sensorSeries.set(label, seeded);
   return seeded;
 };
@@ -43,31 +31,26 @@ const notify = (label: string) => {
   }
 };
 
-const pushNextReading = (label: string) => {
+const pushNextReading = (label: string, nextReading: Reading) => {
   const series = getSeries(label);
-  const last = series[series.length - 1] ?? createSeedReading(label);
-
-  const nextValue = Number((last.value + (Math.random() - 0.5) * 0.6).toFixed(1));
-  const nextReading: Reading = {
-    timestamp: last.timestamp + 5,
-    value: nextValue,
-  };
-
-  const updated = [...series, nextReading];
+  const updated = [...series, nextReading].slice(-MAX_POINTS);
   sensorSeries.set(label, updated);
   notify(label);
 };
 
-const ensureTicker = (label: string) => {
-  if (sensorIntervals.has(label)) {
+const ensureSocketSubscription = (label: string) => {
+  if (socketUnsubscribeBySensor.has(label)) {
     return;
   }
 
-  const interval = setInterval(() => {
-    pushNextReading(label);
-  }, 5000);
+  const unsubscribe = subscribeSensorStream(label, (reading) => {
+    pushNextReading(label, {
+      timestamp: reading.timestamp,
+      value: reading.value,
+    });
+  });
 
-  sensorIntervals.set(label, interval);
+  socketUnsubscribeBySensor.set(label, unsubscribe);
 };
 
 const subscribe = (label: string, listener: () => void) => {
@@ -75,7 +58,7 @@ const subscribe = (label: string, listener: () => void) => {
   listeners.add(listener);
   listenersBySensor.set(label, listeners);
 
-  ensureTicker(label);
+  ensureSocketSubscription(label);
 
   return () => {
     const currentListeners = listenersBySensor.get(label);
@@ -87,10 +70,10 @@ const subscribe = (label: string, listener: () => void) => {
 
     if (currentListeners.size === 0) {
       listenersBySensor.delete(label);
-      const interval = sensorIntervals.get(label);
-      if (interval) {
-        clearInterval(interval);
-        sensorIntervals.delete(label);
+      const unsubscribe = socketUnsubscribeBySensor.get(label);
+      if (unsubscribe) {
+        unsubscribe();
+        socketUnsubscribeBySensor.delete(label);
       }
     }
   };
