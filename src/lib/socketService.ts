@@ -1,0 +1,314 @@
+import { useSyncExternalStore } from "react";
+import { io, type Socket } from "socket.io-client";
+
+export type ReadingPayload = {
+  label: string;
+  timestamp: number;
+  value: number;
+};
+
+export type SocketConnectionState = "idle" | "connecting" | "connected" | "stale" | "error";
+
+export type SocketStatus = {
+  state: SocketConnectionState;
+  backendUrl: string | null;
+  lastMessageAt: number | null;
+  errorMessage: string | null;
+};
+
+type StatusListener = () => void;
+type ReadingListener = (reading: ReadingPayload) => void;
+
+const SENSOR_EVENT = "sensor-data";
+const statusListeners = new Set<StatusListener>();
+const sensorListenersByLabel = new Map<string, Set<ReadingListener>>();
+const RECONNECT_WATCHDOG_MS = 2000;
+
+let socket: Socket | null = null;
+let isBootstrapped = false;
+let reconnectWatchdog: ReturnType<typeof setInterval> | null = null;
+
+let socketStatus: SocketStatus = {
+  state: "idle",
+  backendUrl: process.env.EXPO_PUBLIC_BACKEND_URL ?? null,
+  lastMessageAt: null,
+  errorMessage: null,
+};
+
+const emitStatus = () => {
+  for (const listener of statusListeners) {
+    listener();
+  }
+};
+
+const setSocketStatus = (next: Partial<SocketStatus>) => {
+  socketStatus = {
+    ...socketStatus,
+    ...next,
+  };
+  emitStatus();
+};
+
+const hasSensorSubscribers = () => sensorListenersByLabel.size > 0;
+
+const stopReconnectWatchdog = () => {
+  if (!reconnectWatchdog) {
+    return;
+  }
+
+  clearInterval(reconnectWatchdog);
+  reconnectWatchdog = null;
+};
+
+const ensureReconnectWatchdog = () => {
+  if (reconnectWatchdog) {
+    return;
+  }
+
+  reconnectWatchdog = setInterval(() => {
+    if (!hasSensorSubscribers()) {
+      stopReconnectWatchdog();
+      return;
+    }
+
+    const instance = ensureSocket();
+    if (!instance || instance.connected || instance.active) {
+      return;
+    }
+
+    setSocketStatus({
+      state: "connecting",
+      errorMessage: null,
+    });
+    instance.connect();
+  }, RECONNECT_WATCHDOG_MS);
+};
+
+const parseReading = (payload: unknown): ReadingPayload | null => {
+  if (!payload || typeof payload !== "object") {
+    return null;
+  }
+
+  const candidate = payload as Partial<ReadingPayload>;
+  if (typeof candidate.label !== "string") {
+    return null;
+  }
+
+  const rawTimestamp = candidate.timestamp;
+  const timestamp =
+    typeof rawTimestamp === "number"
+      ? rawTimestamp
+      : typeof rawTimestamp === "string"
+        ? (() => {
+            const numeric = Number(rawTimestamp);
+            if (Number.isFinite(numeric)) {
+              return numeric;
+            }
+
+            const parsedMs = Date.parse(rawTimestamp);
+            return Number.isFinite(parsedMs) ? Math.floor(parsedMs / 1000) : Number.NaN;
+          })()
+        : Number.NaN;
+  const value = Number(candidate.value);
+  if (!Number.isFinite(timestamp) || !Number.isFinite(value)) {
+    return null;
+  }
+
+  return {
+    label: candidate.label,
+    timestamp,
+    value,
+  };
+};
+
+const handleSensorEvent = (payload: unknown) => {
+  console.log("[socket] received payload:", payload);
+
+  const reading = parseReading(payload);
+  if (!reading) {
+    return;
+  }
+
+  setSocketStatus({
+    state: "connected",
+    lastMessageAt: Math.floor(Date.now() / 1000),
+    errorMessage: null,
+  });
+
+  const listeners = sensorListenersByLabel.get(reading.label);
+  if (!listeners || listeners.size === 0) {
+    return;
+  }
+
+  for (const listener of listeners) {
+    listener(reading);
+  }
+};
+
+const ensureSocket = () => {
+  if (socket) {
+    return socket;
+  }
+
+  const backendUrl = process.env.EXPO_PUBLIC_BACKEND_URL ?? "";
+  if (!backendUrl) {
+    setSocketStatus({
+      state: "error",
+      backendUrl: null,
+      errorMessage: "EXPO_PUBLIC_BACKEND_URL is not set",
+    });
+    return null;
+  }
+
+  socket = io(backendUrl, {
+    autoConnect: false,
+    transports: ["polling"],
+    upgrade: false,
+    reconnection: true,
+    reconnectionAttempts: Infinity,
+    reconnectionDelay: 1000,
+    reconnectionDelayMax: 5000,
+    timeout: 10000,
+  });
+
+  setSocketStatus({
+    backendUrl,
+    errorMessage: null,
+  });
+
+  socket.on("connect", () => {
+    setSocketStatus({
+      state: "connected",
+      errorMessage: null,
+    });
+  });
+
+  socket.on("disconnect", (reason) => {
+    if (reason === "io client disconnect") {
+      setSocketStatus({
+        state: "idle",
+        errorMessage: null,
+      });
+      return;
+    }
+
+    setSocketStatus({
+      state: "connecting",
+      errorMessage: `Disconnected: ${reason}`,
+    });
+
+    if (reason === "io server disconnect") {
+      socket?.connect();
+    }
+  });
+
+  socket.on("connect_error", (error) => {
+    setSocketStatus({
+      state: "error",
+      errorMessage: error.message,
+    });
+  });
+
+  socket.on(SENSOR_EVENT, handleSensorEvent);
+
+  return socket;
+};
+
+export const connectSocket = () => {
+  const instance = ensureSocket();
+  if (!instance) {
+    return;
+  }
+
+  if (instance.connected) {
+    setSocketStatus({
+      state: "connected",
+      errorMessage: null,
+    });
+    return;
+  }
+
+  if (instance.active) {
+    setSocketStatus({
+      state: "connecting",
+      errorMessage: null,
+    });
+    return;
+  }
+
+  setSocketStatus({
+    state: "connecting",
+    errorMessage: null,
+  });
+  instance.connect();
+};
+
+export const disconnectSocket = () => {
+  if (!socket) {
+    isBootstrapped = false;
+    stopReconnectWatchdog();
+    setSocketStatus({ state: "idle" });
+    return;
+  }
+
+  socket.off(SENSOR_EVENT, handleSensorEvent);
+  socket.removeAllListeners();
+  socket.disconnect();
+  socket = null;
+  isBootstrapped = false;
+  stopReconnectWatchdog();
+
+  setSocketStatus({
+    state: "idle",
+    errorMessage: null,
+  });
+};
+
+export const bootstrapSocket = () => {
+  if (isBootstrapped && socket) {
+    return;
+  }
+
+  isBootstrapped = true;
+  connectSocket();
+};
+
+export const subscribeSensorStream = (
+  label: string,
+  listener: ReadingListener,
+): (() => void) => {
+  const listeners = sensorListenersByLabel.get(label) ?? new Set<ReadingListener>();
+  listeners.add(listener);
+  sensorListenersByLabel.set(label, listeners);
+
+  connectSocket();
+  ensureReconnectWatchdog();
+
+  return () => {
+    const current = sensorListenersByLabel.get(label);
+    if (!current) {
+      return;
+    }
+
+    current.delete(listener);
+    if (current.size === 0) {
+      sensorListenersByLabel.delete(label);
+
+      if (!hasSensorSubscribers()) {
+        stopReconnectWatchdog();
+      }
+    }
+  };
+};
+
+export const getSocketStatus = (): SocketStatus => socketStatus;
+
+export const subscribeSocketStatus = (listener: StatusListener) => {
+  statusListeners.add(listener);
+  return () => {
+    statusListeners.delete(listener);
+  };
+};
+
+export const useSocketStatus = (): SocketStatus =>
+  useSyncExternalStore(subscribeSocketStatus, getSocketStatus, getSocketStatus);
