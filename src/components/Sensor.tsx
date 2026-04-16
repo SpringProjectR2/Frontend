@@ -2,6 +2,7 @@ import { Link } from 'expo-router';
 import { Pressable, Text, View } from 'react-native';
 import { CartesianChart, Line } from 'victory-native';
 import { useSensorData } from '@/src/lib/sensorData';
+import { useSocketStatus } from '@/src/lib/socketService';
 
 type Props = {
   label: string;
@@ -9,8 +10,10 @@ type Props = {
 
 export default function Sensor({ label }: Props) {
   const data = useSensorData(label);
+  const socketStatus = useSocketStatus();
 
   const currentValue = data[data.length - 1]?.value ?? 0;
+  const isStale = socketStatus.state === 'stale' || socketStatus.state === 'error';
 
   return (
     <Link href={{ pathname: '/sensor', params: { label } }} asChild>
@@ -25,6 +28,11 @@ export default function Sensor({ label }: Props) {
             <Text style={{ fontSize: 14, color: '#666' }}>
               {currentValue.toFixed(1)} °C
             </Text>
+            {isStale ? (
+              <Text style={{ fontSize: 12, color: '#a64d00', marginTop: 2 }}>
+                Stale: waiting for reconnect
+              </Text>
+            ) : null}
           </View>
           <View style={{ flex: 1 }}>
             <CartesianChart
