@@ -2,6 +2,7 @@ import { Inter_400Regular } from '@expo-google-fonts/inter';
 import { useFonts } from 'expo-font';
 import * as Notifications from 'expo-notifications';
 import { Stack } from 'expo-router';
+import { useEffect } from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { AuthProvider, useAuth } from '@/src/lib/auth';
 
@@ -34,6 +35,21 @@ export default function RootLayout() {
   const [fontsLoaded] = useFonts({
     Inter_400Regular,
   });
+
+  useEffect(() => {
+    const requestNotificationPermission = async () => {
+      try {
+        const { status } = await Notifications.getPermissionsAsync();
+        if (status !== 'granted') {
+          await Notifications.requestPermissionsAsync();
+        }
+      } catch (error) {
+        console.warn('Unable to request notification permissions', error);
+      }
+    };
+
+    requestNotificationPermission();
+  }, []);
 
   if (!fontsLoaded) {
     return null;
