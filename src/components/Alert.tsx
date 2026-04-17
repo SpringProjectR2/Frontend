@@ -1,6 +1,6 @@
 import { Platform, Pressable, Text, View } from 'react-native';
 import * as Notifications from 'expo-notifications';
-import { isNotificationSoundEnabled } from '@/src/lib/notificationSettings';
+import { isNotificationSoundEnabled, isNotificationsEnabled } from '@/src/lib/notificationSettings';
 
 type Props = {
   label: string;
@@ -8,6 +8,10 @@ type Props = {
 
 export default function Alert({ label }: Props) {
   const handleTestNotification = async () => {
+    if (!isNotificationsEnabled()) {
+      return;
+    }
+
     const soundEnabled = isNotificationSoundEnabled();
 
     if (Platform.OS === 'android') {

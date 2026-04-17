@@ -1,15 +1,22 @@
 import { useRouter } from "expo-router";
 import { useState } from "react";
+import * as Notifications from "expo-notifications";
 import { Pressable, StyleSheet, Switch, Text, View } from "react-native";
 import { useAuth } from "@/src/lib/auth";
 import {
+  isNotificationsEnabled,
   isNotificationSoundEnabled,
+  setNotificationsEnabled,
   setNotificationSoundEnabled,
 } from "@/src/lib/notificationSettings";
 
 export default function Settings() {
   const router = useRouter();
   const { logout } = useAuth();
+  const [isUpdatingNotifications, setIsUpdatingNotifications] = useState(false);
+  const [notificationsEnabled, setNotifications] = useState(
+    isNotificationsEnabled(),
+  );
   const [notificationSoundEnabled, setNotificationSound] = useState(
     isNotificationSoundEnabled(),
   );
@@ -17,6 +24,30 @@ export default function Settings() {
   const handleLogout = () => {
     logout();
     router.replace("/login");
+  };
+
+  const handleToggleNotifications = async (enabled: boolean) => {
+    if (isUpdatingNotifications) {
+      return;
+    }
+
+    if (!enabled) {
+      setNotifications(false);
+      setNotificationsEnabled(false);
+      return;
+    }
+
+    setNotifications(true);
+    setIsUpdatingNotifications(true);
+
+    try {
+      const { status } = await Notifications.requestPermissionsAsync();
+      const granted = status === "granted";
+      setNotifications(granted);
+      setNotificationsEnabled(granted);
+    } finally {
+      setIsUpdatingNotifications(false);
+    }
   };
 
   const handleToggleNotificationSound = (enabled: boolean) => {
@@ -30,11 +61,21 @@ export default function Settings() {
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Notifications</Text>
         <View style={styles.row}>
+          <Text style={styles.label}>Enable notifications</Text>
+          <Switch
+            value={notificationsEnabled}
+            onValueChange={handleToggleNotifications}
+            accessibilityLabel="Toggle notifications"
+            disabled={isUpdatingNotifications}
+          />
+        </View>
+        <View style={styles.row}>
           <Text style={styles.label}>Notification sound</Text>
           <Switch
             value={notificationSoundEnabled}
             onValueChange={handleToggleNotificationSound}
             accessibilityLabel="Toggle notification sound"
+            disabled={!notificationsEnabled}
           />
         </View>
       </View>

@@ -5,6 +5,7 @@ import { Stack } from 'expo-router';
 import { useEffect } from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { AuthProvider, useAuth } from '@/src/lib/auth';
+import { isNotificationsEnabled } from '@/src/lib/notificationSettings';
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -38,6 +39,10 @@ export default function RootLayout() {
 
   useEffect(() => {
     const requestNotificationPermission = async () => {
+      if (!isNotificationsEnabled()) {
+        return;
+      }
+
       try {
         const { status } = await Notifications.getPermissionsAsync();
         if (status !== 'granted') {
