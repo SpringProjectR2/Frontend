@@ -9,7 +9,7 @@ import {
   useBackendConfig,
 } from '@/src/lib/backendConfig';
 import { bootstrapSocket, disconnectSocket } from '@/src/lib/socketService';
-import { ThemeProvider } from '@/src/context/theme'; // 👈 LISÄTTY
+import { ThemeProvider } from '@/src/context/theme';
 
 function RootNavigator() {
   const { isLoggedIn } = useAuth();
@@ -55,7 +55,7 @@ export default function RootLayout() {
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <ThemeProvider> {/* 👈 LISÄTTY */}
+      <ThemeProvider> {}
         <AuthProvider>
           <RootNavigator />
         </AuthProvider>
