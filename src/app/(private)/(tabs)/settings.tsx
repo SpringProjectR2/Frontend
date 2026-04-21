@@ -1,23 +1,20 @@
 import { useRouter } from "expo-router";
-import {
-  Pressable,
-  StyleSheet,
-  Text,
-  View,
-  Switch,
-  Modal,
-} from "react-native";
+import { Pressable, StyleSheet, View, Switch, Modal } from "react-native";
 import { useState } from "react";
 import { useAuth } from "@/src/lib/auth";
 import { Ionicons } from "@expo/vector-icons";
 import Constants from "expo-constants";
-import { useTheme } from "@/src/context/theme";
+
+import { useTheme, getFontSizeValue } from "@/src/context/theme";
 import { lightTheme, darkTheme } from "@/src/theme/colors";
+
+import Screen from "@/src/components/Screen";
+import AppText from "@/src/components/AppText";
 
 export default function Settings() {
   const router = useRouter();
   const { logout } = useAuth();
-  const { theme, setTheme } = useTheme();
+  const { theme, setTheme, fontSize, setFontSize } = useTheme();
 
   const colors = theme === "dark" ? darkTheme : lightTheme;
 
@@ -51,6 +48,15 @@ export default function Settings() {
       setTheme(value === "Tumma" ? "dark" : "light");
     }
 
+    if (activeSetting === "fontSize") {
+      const map: any = {
+        Pieni: "small",
+        Keskikoko: "medium",
+        Suuri: "large",
+      };
+      setFontSize(map[value]);
+    }
+
     setModalVisible(false);
   };
 
@@ -62,194 +68,239 @@ export default function Settings() {
         return ["C", "F"];
       case "theme":
         return ["Tumma", "Vaalea"];
+      case "fontSize":
+        return ["Pieni", "Keskikoko", "Suuri"];
       default:
         return [];
     }
   };
 
-  return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <Text style={[styles.sectionTitle, { color: colors.text }]}>
-        Yleiset
-      </Text>
+  const getFontLabel = () => {
+    switch (fontSize) {
+      case "small":
+        return "Pieni";
+      case "large":
+        return "Suuri";
+      default:
+        return "Keskikoko";
+    }
+  };
 
+  return (
+    <Screen>
+      {/* YLEISET */}
+      <AppText
+        style={[
+          styles.sectionTitle,
+          {
+            color: colors.text,
+            fontSize: getFontSizeValue(fontSize, 24),
+          },
+        ]}
+      >
+        Yleiset
+      </AppText>
+
+      {/* FONT SIZE */}
+      <Pressable style={styles.row} onPress={() => openModal("fontSize")}>
+        <View style={styles.rowLeft}>
+          <Ionicons name="text-outline" size={20} color={colors.text} />
+          <AppText style={{ color: colors.text }}>Fonttikoko</AppText>
+        </View>
+        <AppText style={{ color: colors.text }}>
+          {getFontLabel()} ›
+        </AppText>
+      </Pressable>
+
+      {/* LANGUAGE */}
       <Pressable style={styles.row} onPress={() => openModal("language")}>
         <View style={styles.rowLeft}>
           <Ionicons name="language-outline" size={20} color={colors.text} />
-          <Text style={{ color: colors.text }}>Kieli</Text>
+          <AppText style={{ color: colors.text }}>Kieli</AppText>
         </View>
-        <Text style={{ color: colors.text }}>{language} ›</Text>
+        <AppText style={{ color: colors.text }}>{language} ›</AppText>
       </Pressable>
 
+      {/* TEMP */}
       <Pressable style={styles.row} onPress={() => openModal("temperature")}>
         <View style={styles.rowLeft}>
           <Ionicons name="thermometer-outline" size={20} color={colors.text} />
-          <Text style={{ color: colors.text }}>Lämpötila</Text>
+          <AppText style={{ color: colors.text }}>Lämpötila</AppText>
         </View>
-        <Text style={{ color: colors.text }}>{temperature} ›</Text>
+        <AppText style={{ color: colors.text }}>{temperature} ›</AppText>
       </Pressable>
 
+      {/* THEME */}
       <Pressable style={styles.row} onPress={() => openModal("theme")}>
         <View style={styles.rowLeft}>
-          <Ionicons name="color-palette-outline" size={20} color={colors.text} />
-          <Text style={{ color: colors.text }}>Teema</Text>
+          <Ionicons
+            name="color-palette-outline"
+            size={20}
+            color={colors.text}
+          />
+          <AppText style={{ color: colors.text }}>Teema</AppText>
         </View>
-        <Text style={{ color: colors.text }}>{themeLabel} ›</Text>
+        <AppText style={{ color: colors.text }}>{themeLabel} ›</AppText>
       </Pressable>
 
-      <View style={styles.divider} />
+      <View style={[styles.divider, { backgroundColor: colors.border }]} />
 
-      <Text style={[styles.sectionTitle, { color: colors.text }]}>
+      {/* NOTIFICATIONS */}
+      <AppText
+        style={[
+          styles.sectionTitle,
+          {
+            color: colors.text,
+            fontSize: getFontSizeValue(fontSize, 24),
+          },
+        ]}
+      >
         Ilmoitukset
-      </Text>
+      </AppText>
 
       <View style={styles.row}>
-        <View style={styles.rowLeft}>
-          <Ionicons name="notifications-outline" size={20} color={colors.text} />
-          <Text style={{ color: colors.text }}>Push-ilmoitukset</Text>
-        </View>
+        <AppText style={{ color: colors.text }}>Push-ilmoitukset</AppText>
         <Switch value={pushEnabled} onValueChange={setPushEnabled} />
       </View>
 
       <View style={styles.row}>
-        <View style={styles.rowLeft}>
-          <Ionicons name="volume-high-outline" size={20} color={colors.text} />
-          <Text style={{ color: colors.text }}>Ääni</Text>
-        </View>
+        <AppText style={{ color: colors.text }}>Ääni</AppText>
         <Switch value={soundEnabled} onValueChange={setSoundEnabled} />
       </View>
 
       <View style={styles.row}>
-        <View style={styles.rowLeft}>
-          <Ionicons name="phone-portrait-outline" size={20} color={colors.text} />
-          <Text style={{ color: colors.text }}>Värinä</Text>
-        </View>
+        <AppText style={{ color: colors.text }}>Värinä</AppText>
         <Switch value={vibrationEnabled} onValueChange={setVibrationEnabled} />
       </View>
 
-      <View style={styles.divider} />
+      <View style={[styles.divider, { backgroundColor: colors.border }]} />
 
+      {/* LOGOUT */}
       <Pressable style={styles.logoutButton} onPress={handleLogout}>
-        <Text style={styles.logoutText}>Kirjaudu ulos</Text>
+        <AppText style={styles.logoutText}>Kirjaudu ulos</AppText>
       </Pressable>
 
-      <View style={styles.divider} />
+      <View style={[styles.divider, { backgroundColor: colors.border }]} />
 
-      <Text style={[styles.sectionTitle, { color: colors.text }]}>
+      {/* INFO */}
+      <AppText
+        style={[
+          styles.sectionTitle,
+          {
+            color: colors.text,
+            fontSize: getFontSizeValue(fontSize, 24),
+          },
+        ]}
+      >
         Tietoa sovelluksesta
-      </Text>
+      </AppText>
 
       <View style={[styles.infoBox, { backgroundColor: colors.card }]}>
-        <Text style={{ color: colors.text }}>
+        <AppText style={{ color: colors.text }}>
           Versio: {Constants.expoConfig?.version ?? "1.0.0"}
-        </Text>
-        <Text style={{ marginTop: 6, color: colors.text }}>
+        </AppText>
+
+        <AppText style={{ marginTop: 6, color: colors.text }}>
           Tekijät: Aapo, Antti, Jan-Henrik ja Ville
-        </Text>
-        <Text style={{ marginTop: 6, color: colors.text }}>© 2026</Text>
+        </AppText>
+
+        <AppText style={{ marginTop: 6, color: colors.text }}>
+          © 2026
+        </AppText>
       </View>
 
       {/* MODAL */}
       <Modal visible={modalVisible} transparent animationType="slide">
         <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { backgroundColor: colors.background }]}>
-            {getOptions().map((option) => {
-              const isSelected =
-                (activeSetting === "language" && option === language) ||
-                (activeSetting === "temperature" && option === temperature) ||
-                (activeSetting === "theme" && option === themeLabel);
-
-              return (
-                <Pressable
-                  key={option}
-                  style={styles.option}
-                  onPress={() => selectOption(option)}
-                >
-                  <View style={styles.optionRow}>
-                    <Text style={{ color: colors.text }}>{option}</Text>
-                    {isSelected && (
-                      <Ionicons name="checkmark" size={20} color={colors.text} />
-                    )}
-                  </View>
-                </Pressable>
-              );
-            })}
+          <View
+            style={[
+              styles.modalContent,
+              { backgroundColor: colors.background },
+            ]}
+          >
+            {getOptions().map((option) => (
+              <Pressable
+                key={option}
+                style={styles.option}
+                onPress={() => selectOption(option)}
+              >
+                <AppText style={{ color: colors.text }}>
+                  {option}
+                </AppText>
+              </Pressable>
+            ))}
 
             <Pressable onPress={() => setModalVisible(false)}>
-              <Text style={[styles.cancel, { color: colors.text }]}>
-                Peruuta
-              </Text>
+              <AppText style={styles.cancel}>Peruuta</AppText>
             </Pressable>
           </View>
         </View>
       </Modal>
-    </View>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    padding: 16,
-  },
   sectionTitle: {
-    fontSize: 24,
     fontWeight: "600",
     marginVertical: 10,
   },
+
   row: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
     paddingVertical: 14,
   },
+
   rowLeft: {
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
+    flex: 1,
   },
-  label: {
-    fontSize: 16,
-  },
+
   divider: {
     height: 1,
     marginVertical: 16,
   },
+
   logoutButton: {
-    backgroundColor: "red",
+    backgroundColor: "#ff3b30",
     padding: 14,
     borderRadius: 8,
     alignItems: "center",
   },
+
   logoutText: {
+    color: "#fff",
     fontWeight: "600",
   },
+
   infoBox: {
     marginTop: 10,
     padding: 12,
     borderRadius: 8,
   },
+
   modalOverlay: {
     flex: 1,
     justifyContent: "flex-end",
     backgroundColor: "rgba(0,0,0,0.3)",
   },
+
   modalContent: {
     padding: 20,
     borderTopLeftRadius: 16,
     borderTopRightRadius: 16,
   },
+
   option: {
     paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderColor: "#eee",
   },
-  optionRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  optionText: {
-    fontSize: 16,
-  },
+
   cancel: {
     textAlign: "center",
     marginTop: 10,
