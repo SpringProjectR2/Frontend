@@ -6,8 +6,12 @@ import { CartesianChart, Line } from "victory-native";
 import { useSensorData } from "@/src/lib/sensorData";
 import { useSocketStatus } from "@/src/lib/socketService";
 
-const formatUnixTimeLabel = (timestamp: number) => {
-  const date = new Date(timestamp * 1000);
+const formatTimeLabel = (time: string) => {
+  const date = new Date(time);
+  if (!Number.isFinite(date.getTime())) {
+    return time;
+  }
+
   return date.toISOString().slice(11, 19);
 };
 
@@ -40,15 +44,15 @@ export default function Sensor() {
       <View style={{ height: 300 }}>
         <CartesianChart
           data={data}
-          xKey="timestamp"
-          yKeys={["value"]}
+          xKey="time"
+          yKeys={["temperature"]}
           axisOptions={{
             font,
-            formatXLabel: (label) => formatUnixTimeLabel(Number(label)),
+            formatXLabel: (label) => formatTimeLabel(String(label)),
           }}
         >
           {({ points }) => (
-            <Line points={points.value} color="red" strokeWidth={3} />
+            <Line points={points.temperature} color="red" strokeWidth={3} />
           )}
         </CartesianChart>
       </View>
@@ -56,11 +60,11 @@ export default function Sensor() {
       <View style={{ marginTop: 16, borderWidth: 1, borderColor: "#ddd" }}>
         <View style={{ flexDirection: "row", backgroundColor: "#f6f6f6" }}>
           <Text style={{ flex: 1, padding: 8, fontWeight: "600" }}>Time</Text>
-          <Text style={{ width: 100, padding: 8, fontWeight: "600" }}>Value</Text>
+          <Text style={{ width: 100, padding: 8, fontWeight: "600" }}>Temperature</Text>
         </View>
         {data.map((point, index) => (
           <View
-            key={`${point.timestamp}-${index}`}
+            key={`${point.time}-${index}`}
             style={{
               flexDirection: "row",
               borderTopWidth: 1,
@@ -68,9 +72,9 @@ export default function Sensor() {
             }}
           >
             <Text style={{ flex: 1, padding: 8 }}>
-              {formatUnixTimeLabel(point.timestamp)}
+              {formatTimeLabel(point.time)}
             </Text>
-            <Text style={{ width: 100, padding: 8 }}>{point.value}</Text>
+            <Text style={{ width: 100, padding: 8 }}>{point.temperature}</Text>
           </View>
         ))}
       </View>

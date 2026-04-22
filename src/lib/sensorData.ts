@@ -1,14 +1,17 @@
 import { useEffect, useState } from "react";
+import { getAccessToken } from "@/src/lib/auth";
+import { getBackendUrl } from "@/src/lib/backendConfig";
 import { subscribeSensorStream } from "@/src/lib/socketService";
 
 export type Reading = {
-  timestamp: number;
-  value: number;
+  time: string;
+  temperature: number;
 };
 
 const sensorSeries = new Map<string, Reading[]>();
 const listenersBySensor = new Map<string, Set<() => void>>();
 const socketUnsubscribeBySensor = new Map<string, () => void>();
+const hydratedHistoryBySensor = new Set<string>();
 const MAX_POINTS = 240;
 
 const getSeries = (label: string): Reading[] => {
@@ -38,6 +41,87 @@ const pushNextReading = (label: string, nextReading: Reading) => {
   notify(label);
 };
 
+type HistoryItem = {
+  time?: string;
+  temperature?: number;
+};
+
+const mergeSeriesByTimestamp = (existing: Reading[], incoming: Reading[]): Reading[] => {
+  const byTime = new Map<string, number>();
+
+  for (const point of existing) {
+    byTime.set(point.time, point.temperature);
+  }
+
+  for (const point of incoming) {
+    byTime.set(point.time, point.temperature);
+  }
+
+  return Array.from(byTime.entries())
+    .sort((left, right) => Date.parse(left[0]) - Date.parse(right[0]))
+    .map(([time, temperature]) => ({ time, temperature }))
+    .slice(-MAX_POINTS);
+};
+
+const hydrateHistory = async (label: string) => {
+  if (hydratedHistoryBySensor.has(label)) {
+    return;
+  }
+
+  hydratedHistoryBySensor.add(label);
+
+  const backendUrl = getBackendUrl();
+  const accessToken = getAccessToken();
+  if (!backendUrl || !accessToken) {
+    return;
+  }
+
+  try {
+    const response = await fetch(
+      `${backendUrl}/history/${encodeURIComponent(label)}?hours=24&limit=100`,
+      {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      },
+    );
+
+    if (!response.ok) {
+      return;
+    }
+
+    const payload = (await response.json()) as unknown;
+    if (!Array.isArray(payload)) {
+      return;
+    }
+
+    const incoming: Reading[] = payload
+      .map((entry) => {
+        const item = entry as HistoryItem;
+        if (typeof item.time !== "string" || typeof item.temperature !== "number") {
+          return null;
+        }
+
+        if (!Number.isFinite(Date.parse(item.time))) {
+          return null;
+        }
+
+        return {
+          time: item.time,
+          temperature: item.temperature,
+        };
+      })
+      .filter((point): point is Reading => point !== null);
+
+    const existing = getSeries(label);
+    sensorSeries.set(label, mergeSeriesByTimestamp(existing, incoming));
+    notify(label);
+  } catch {
+    // Keep stream alive even if history fetch fails.
+  }
+};
+
 const ensureSocketSubscription = (label: string) => {
   if (socketUnsubscribeBySensor.has(label)) {
     return;
@@ -45,8 +129,8 @@ const ensureSocketSubscription = (label: string) => {
 
   const unsubscribe = subscribeSensorStream(label, (reading) => {
     pushNextReading(label, {
-      timestamp: reading.timestamp,
-      value: reading.value,
+      time: new Date(reading.timestamp * 1000).toISOString(),
+      temperature: reading.value,
     });
   });
 
@@ -84,6 +168,7 @@ export const useSensorData = (label: string): Reading[] => {
 
   useEffect(() => {
     setData(getSeries(label));
+    hydrateHistory(label);
 
     const unsubscribe = subscribe(label, () => {
       setData(getSeries(label));

@@ -12,7 +12,7 @@ export default function Sensor({ label }: Props) {
   const data = useSensorData(label);
   const socketStatus = useSocketStatus();
 
-  const currentValue = data[data.length - 1]?.value ?? 0;
+  const currentValue = data[data.length - 1]?.temperature ?? 0;
   const isStale = socketStatus.state === 'stale' || socketStatus.state === 'error';
 
   return (
@@ -37,11 +37,11 @@ export default function Sensor({ label }: Props) {
           <View style={{ flex: 1 }}>
             <CartesianChart
               data={data}
-              xKey="timestamp"
-              yKeys={["value"]}
+              xKey="time"
+              yKeys={["temperature"]}
             >
               {({ points }) => (
-                <Line points={points.value} color="red" strokeWidth={3} />
+                <Line points={points.temperature} color="red" strokeWidth={3} />
               )}
             </CartesianChart>
           </View>
