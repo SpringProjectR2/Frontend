@@ -16,8 +16,16 @@ const formatTimeLabel = (time: string) => {
 };
 
 export default function Sensor() {
-  const { label } = useLocalSearchParams<{ label?: string | string[] }>();
+  const { label, metric } = useLocalSearchParams<{
+    label?: string | string[];
+    metric?: string | string[];
+  }>();
   const sensorLabel = Array.isArray(label) ? label[0] : label ?? "Sensor";
+  const metricParam = Array.isArray(metric) ? metric[0] : metric;
+  const selectedMetric = metricParam === "humidity" ? "humidity" : "temperature";
+  const metricLabel = selectedMetric === "humidity" ? "Humidity" : "Temperature";
+  const metricUnit = selectedMetric === "humidity" ? "%" : "°C";
+  const metricColor = selectedMetric === "humidity" ? "#1f77b4" : "red";
   const data = useSensorData(sensorLabel);
   const socketStatus = useSocketStatus();
   const isStale = socketStatus.state === "stale" || socketStatus.state === "error";
@@ -34,7 +42,7 @@ export default function Sensor() {
   return (
     <ScrollView contentContainerStyle={{ padding: 12 }}>
       <Text style={{ fontSize: 20, fontWeight: "600", marginBottom: 12 }}>
-        {sensorLabel} details
+        {sensorLabel} {metricLabel} details
       </Text>
       {isStale ? (
         <Text style={{ color: "#a64d00", marginBottom: 8 }}>
@@ -45,24 +53,30 @@ export default function Sensor() {
         <CartesianChart
           data={data}
           xKey="time"
-          yKeys={["temperature"]}
+          yKeys={[selectedMetric]}
           axisOptions={{
             font,
             formatXLabel: (label) => formatTimeLabel(String(label)),
           }}
         >
-          {({ points }) => (
-            <Line points={points.temperature} color="red" strokeWidth={3} />
-          )}
+          {({ points }) => {
+            if (selectedMetric === "humidity") {
+              return <Line points={points.humidity} color={metricColor} strokeWidth={3} />;
+            }
+
+            return <Line points={points.temperature} color={metricColor} strokeWidth={3} />;
+          }}
         </CartesianChart>
       </View>
 
       <View style={{ marginTop: 16, borderWidth: 1, borderColor: "#ddd" }}>
         <View style={{ flexDirection: "row", backgroundColor: "#f6f6f6" }}>
           <Text style={{ flex: 1, padding: 8, fontWeight: "600" }}>Time</Text>
-          <Text style={{ width: 100, padding: 8, fontWeight: "600" }}>Temperature</Text>
+          <Text style={{ width: 100, padding: 8, fontWeight: "600" }}>
+            {metricLabel}
+          </Text>
         </View>
-        {data.map((point, index) => (
+        {[...data].reverse().map((point, index) => (
           <View
             key={`${point.time}-${index}`}
             style={{
@@ -74,7 +88,9 @@ export default function Sensor() {
             <Text style={{ flex: 1, padding: 8 }}>
               {formatTimeLabel(point.time)}
             </Text>
-            <Text style={{ width: 100, padding: 8 }}>{point.temperature}</Text>
+            <Text style={{ width: 100, padding: 8 }}>
+              {(selectedMetric === "humidity" ? point.humidity : point.temperature).toFixed(1)} {metricUnit}
+            </Text>
           </View>
         ))}
       </View>

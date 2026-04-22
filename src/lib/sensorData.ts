@@ -6,6 +6,7 @@ import { subscribeSensorStream } from "@/src/lib/socketService";
 export type Reading = {
   time: string;
   temperature: number;
+  humidity: number;
 };
 
 const sensorSeries = new Map<string, Reading[]>();
@@ -44,22 +45,22 @@ const pushNextReading = (label: string, nextReading: Reading) => {
 type HistoryItem = {
   time?: string;
   temperature?: number;
+  humidity?: number;
 };
 
 const mergeSeriesByTimestamp = (existing: Reading[], incoming: Reading[]): Reading[] => {
-  const byTime = new Map<string, number>();
+  const byTime = new Map<string, Reading>();
 
   for (const point of existing) {
-    byTime.set(point.time, point.temperature);
+    byTime.set(point.time, point);
   }
 
   for (const point of incoming) {
-    byTime.set(point.time, point.temperature);
+    byTime.set(point.time, point);
   }
 
-  return Array.from(byTime.entries())
-    .sort((left, right) => Date.parse(left[0]) - Date.parse(right[0]))
-    .map(([time, temperature]) => ({ time, temperature }))
+  return Array.from(byTime.values())
+    .sort((left, right) => Date.parse(left.time) - Date.parse(right.time))
     .slice(-MAX_POINTS);
 };
 
@@ -107,9 +108,12 @@ const hydrateHistory = async (label: string) => {
           return null;
         }
 
+        const parsedHumidity = Number(item.humidity);
+
         return {
           time: item.time,
           temperature: item.temperature,
+          humidity: Number.isFinite(parsedHumidity) ? parsedHumidity : 0,
         };
       })
       .filter((point): point is Reading => point !== null);
@@ -131,6 +135,7 @@ const ensureSocketSubscription = (label: string) => {
     pushNextReading(label, {
       time: new Date(reading.timestamp * 1000).toISOString(),
       temperature: reading.value,
+      humidity: reading.humidity,
     });
   });
 

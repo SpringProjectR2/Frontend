@@ -7,6 +7,16 @@ export type ReadingPayload = {
   label: string;
   timestamp: number;
   value: number;
+  battery: number;
+  humidity: number;
+};
+
+type IncomingSensorPayload = {
+  mac?: unknown;
+  time?: unknown;
+  temperature?: unknown;
+  battery?: unknown;
+  humidity?: unknown;
 };
 
 export type SocketConnectionState = "idle" | "connecting" | "connected" | "stale" | "error";
@@ -21,7 +31,7 @@ export type SocketStatus = {
 type StatusListener = () => void;
 type ReadingListener = (reading: ReadingPayload) => void;
 
-const SENSOR_EVENT = "sensor-data";
+const SENSOR_EVENT = "sensor_update";
 const statusListeners = new Set<StatusListener>();
 const sensorListenersByLabel = new Map<string, Set<ReadingListener>>();
 const RECONNECT_WATCHDOG_MS = 2000;
@@ -86,40 +96,56 @@ const ensureReconnectWatchdog = () => {
   }, RECONNECT_WATCHDOG_MS);
 };
 
+const normalizeUnixSeconds = (input: unknown): number => {
+  if (typeof input === "number" && Number.isFinite(input)) {
+    return input > 1e12 ? Math.floor(input / 1000) : Math.floor(input);
+  }
+
+  if (typeof input === "string") {
+    const numeric = Number(input);
+    if (Number.isFinite(numeric)) {
+      return numeric > 1e12 ? Math.floor(numeric / 1000) : Math.floor(numeric);
+    }
+
+    const parsedMs = Date.parse(input);
+    if (Number.isFinite(parsedMs)) {
+      return Math.floor(parsedMs / 1000);
+    }
+  }
+
+  return Number.NaN;
+};
+
 const parseReading = (payload: unknown): ReadingPayload | null => {
   if (!payload || typeof payload !== "object") {
     return null;
   }
 
-  const candidate = payload as Partial<ReadingPayload>;
-  if (typeof candidate.label !== "string") {
+  const candidate = payload as IncomingSensorPayload;
+  const label = typeof candidate.mac === "string" ? candidate.mac : null;
+  if (!label) {
     return null;
   }
 
-  const rawTimestamp = candidate.timestamp;
-  const timestamp =
-    typeof rawTimestamp === "number"
-      ? rawTimestamp
-      : typeof rawTimestamp === "string"
-        ? (() => {
-            const numeric = Number(rawTimestamp);
-            if (Number.isFinite(numeric)) {
-              return numeric;
-            }
-
-            const parsedMs = Date.parse(rawTimestamp);
-            return Number.isFinite(parsedMs) ? Math.floor(parsedMs / 1000) : Number.NaN;
-          })()
-        : Number.NaN;
-  const value = Number(candidate.value);
-  if (!Number.isFinite(timestamp) || !Number.isFinite(value)) {
+  const timestamp = normalizeUnixSeconds(candidate.time);
+  const value = Number(candidate.temperature);
+  const battery = Number(candidate.battery);
+  const humidity = Number(candidate.humidity);
+  if (
+    !Number.isFinite(timestamp) ||
+    !Number.isFinite(value) ||
+    !Number.isFinite(battery) ||
+    !Number.isFinite(humidity)
+  ) {
     return null;
   }
 
   return {
-    label: candidate.label,
+    label,
     timestamp,
     value,
+    battery,
+    humidity,
   };
 };
 
@@ -171,7 +197,7 @@ const ensureSocket = () => {
     socket = null;
   }
 
-  socket = io(backendUrl, {
+  socket = io(`${backendUrl}/sensor-data`, {
     autoConnect: false,
     transports: ["polling"],
     upgrade: false,
