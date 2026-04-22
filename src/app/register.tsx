@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { MaterialIcons } from "@expo/vector-icons";
 import { SymbolView } from "expo-symbols";
-import { type Href, useRouter } from "expo-router";
+import { useRouter } from "expo-router";
 import {
   ActivityIndicator,
   Alert,
@@ -14,39 +14,29 @@ import {
   TextInput,
   View,
 } from "react-native";
-import { useAuth } from "@/src/lib/auth";
-import {
-  resetConnectionConfirmation,
-  useBackendConfig,
-} from "@/src/lib/backendConfig";
+import { useBackendConfig } from "@/src/lib/backendConfig";
 
-export default function Login() {
+export default function Register() {
   const router = useRouter();
-  const { login } = useAuth();
   const { backendUrl } = useBackendConfig();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleBackToConnect = () => {
-    resetConnectionConfirmation();
-    router.replace("/connect");
-  };
-
-  const handleLogin = async () => {
+  const handleRegister = async () => {
     if (!username.trim() || !password) {
       Alert.alert("Missing fields", "Please enter username and password.");
       return;
     }
 
+    if (!backendUrl) {
+      Alert.alert("Configuration error", "Backend URL is not configured.");
+      return;
+    }
+
     setIsLoading(true);
     try {
-      if (!backendUrl) {
-        Alert.alert("Configuration error", "Backend URL is not configured.");
-        return;
-      }
-
-      const response = await fetch(`${backendUrl}/login`, {
+      const response = await fetch(`${backendUrl}/register`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -58,20 +48,25 @@ export default function Login() {
       });
 
       if (!response.ok) {
-        Alert.alert("Login failed", "Invalid username or password.");
+        let message = "Unable to create account.";
+
+        try {
+          const payload = (await response.json()) as {
+            error?: string;
+            detail?: string;
+            message?: string;
+          };
+          message = payload.error ?? payload.detail ?? payload.message ?? message;
+        } catch {
+          // Keep default message when response body is not JSON.
+        }
+
+        Alert.alert("Registration failed", message);
         return;
       }
 
-      const payload = (await response.json()) as {
-        access_token?: string;
-      };
-      if (!payload.access_token) {
-        Alert.alert("Login failed", "Server did not return an access token.");
-        return;
-      }
-
-      login(payload.access_token);
-      router.replace("/");
+      Alert.alert("Success", "Account created. Please sign in.");
+      router.replace("/login");
     } catch {
       Alert.alert("Network error", "Unable to reach the server.");
     } finally {
@@ -92,54 +87,52 @@ export default function Login() {
         <View style={styles.form}>
           <View style={styles.iconWrapper}>
             {Platform.OS === "ios" ? (
-              <SymbolView name="sensor" size={88} tintColor="#000000" />
+              <SymbolView name="person.badge.plus" size={88} tintColor="#000000" />
             ) : (
-              <MaterialIcons name="sensors" size={88} color="#000000" />
+              <MaterialIcons name="person-add" size={88} color="#000000" />
             )}
           </View>
-          <Text style={styles.title}>Username</Text>
+
+          <Text style={styles.title}>Create Account</Text>
+
+          <Text style={styles.fieldLabel}>Username</Text>
           <TextInput
             value={username}
             onChangeText={setUsername}
-            placeholder=""
+            placeholder="Username"
             autoCapitalize="none"
             style={styles.input}
             returnKeyType="next"
           />
-          <Text style={styles.title}>Password</Text>
+          <Text style={styles.fieldLabel}>Password</Text>
           <TextInput
             value={password}
             onChangeText={setPassword}
-            placeholder=""
+            placeholder="Password"
             secureTextEntry
             style={styles.input}
             returnKeyType="done"
-            onSubmitEditing={handleLogin}
+            onSubmitEditing={handleRegister}
           />
+
           <Pressable
             style={[styles.button, isLoading && styles.buttonDisabled]}
-            onPress={handleLogin}
+            onPress={handleRegister}
             disabled={isLoading}
           >
             {isLoading ? (
               <ActivityIndicator color="#fff" />
             ) : (
-              <Text style={styles.buttonText}>Sign in</Text>
+              <Text style={styles.buttonText}>Create Account</Text>
             )}
           </Pressable>
+
           <Pressable
             style={[styles.linkButton, isLoading && styles.buttonDisabled]}
-            onPress={() => router.push("/register" as Href)}
+            onPress={() => router.replace("/login")}
             disabled={isLoading}
           >
-            <Text style={styles.linkButtonText}>Register</Text>
-          </Pressable>
-          <Pressable
-            style={[styles.linkButton, isLoading && styles.buttonDisabled]}
-            onPress={handleBackToConnect}
-            disabled={isLoading}
-          >
-            <Text style={styles.linkButtonText}>Back to Connect</Text>
+            <Text style={styles.linkButtonText}>Back to Login</Text>
           </Pressable>
         </View>
       </ScrollView>
@@ -164,12 +157,18 @@ const styles = StyleSheet.create({
   },
   iconWrapper: {
     alignItems: "center",
-    marginBottom: 64,
+    marginBottom: 48,
   },
   title: {
     fontSize: 24,
     fontWeight: "600",
     marginBottom: 8,
+    textAlign: "center",
+  },
+  fieldLabel: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: "#000000",
   },
   input: {
     color: "#000000",

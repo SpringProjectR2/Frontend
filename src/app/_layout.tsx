@@ -30,6 +30,7 @@ function RootNavigator() {
       </Stack.Protected>
       <Stack.Protected guard={hasConfirmedConnection && !isLoggedIn}>
         <Stack.Screen name="login" options={{ headerShown: false }} />
+        <Stack.Screen name="register" options={{ headerShown: false }} />
       </Stack.Protected>
       <Stack.Protected guard={hasConfirmedConnection && isLoggedIn}>
         <Stack.Screen name="(private)/(tabs)" options={{ headerShown: false }} />

@@ -1,6 +1,7 @@
 import { useSyncExternalStore } from "react";
 import { io, type Socket } from "socket.io-client";
 import { getBackendUrl } from "@/src/lib/backendConfig";
+import { getAccessToken } from "@/src/lib/auth";
 
 export type ReadingPayload = {
   label: string;
@@ -148,6 +149,7 @@ const handleSensorEvent = (payload: unknown) => {
 
 const ensureSocket = () => {
   const backendUrl = getBackendUrl() ?? "";
+  const accessToken = getAccessToken();
 
   if (!backendUrl) {
     setSocketStatus({
@@ -173,6 +175,12 @@ const ensureSocket = () => {
     autoConnect: false,
     transports: ["polling"],
     upgrade: false,
+    auth: accessToken ? { token: accessToken } : undefined,
+    extraHeaders: accessToken
+      ? {
+          Authorization: `Bearer ${accessToken}`,
+        }
+      : undefined,
     reconnection: true,
     reconnectionAttempts: Infinity,
     reconnectionDelay: 1000,
