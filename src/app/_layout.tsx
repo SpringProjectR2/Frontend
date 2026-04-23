@@ -17,6 +17,11 @@ import {
 
 import { ThemeProvider } from "@/src/context/theme";
 
+import {
+  hydrateSettings,
+  useSettings,
+} from "@/src/lib/settings";
+
 function NavigationGuard() {
   const router = useRouter();
   const segments = useSegments();
@@ -39,7 +44,6 @@ function NavigationGuard() {
       return;
     }
 
-    // logged in
     if (segments[0] === "login" || segments[0] === "connect") {
       router.replace("/(private)/(tabs)");
     }
@@ -82,13 +86,16 @@ export default function RootLayout() {
     Inter_400Regular,
   });
 
-  const { hydrated } = useBackendConfig();
+  const { hydrated: backendHydrated } = useBackendConfig();
+  const { hydrated: settingsHydrated } = useSettings(); 
 
   useEffect(() => {
     hydrateBackendConfig();
+    hydrateSettings(); 
   }, []);
 
-  if (!fontsLoaded || !hydrated) {
+  // ✅ WAIT FOR BOTH
+  if (!fontsLoaded || !backendHydrated || !settingsHydrated) {
     return null;
   }
 

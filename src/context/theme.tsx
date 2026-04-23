@@ -1,4 +1,5 @@
-import { createContext, useContext, useState } from "react";
+import { createContext, useContext, useMemo } from "react";
+import { useSettings, updateSettings } from "@/src/lib/settings";
 
 type Theme = "light" | "dark";
 type FontSize = "small" | "medium" | "large";
@@ -18,13 +19,27 @@ const ThemeContext = createContext<ThemeContextType>({
 });
 
 export const ThemeProvider = ({ children }: any) => {
-  const [theme, setTheme] = useState<Theme>("light");
-  const [fontSize, setFontSize] = useState<FontSize>("medium");
+  const settings = useSettings(); 
+
+  const value = useMemo(
+    () => ({
+      theme: settings.theme,
+      fontSize: settings.fontSize,
+
+      // ✅ write through to persistent store
+      setTheme: (theme: Theme) => {
+        updateSettings({ theme });
+      },
+
+      setFontSize: (fontSize: FontSize) => {
+        updateSettings({ fontSize });
+      },
+    }),
+    [settings.theme, settings.fontSize]
+  );
 
   return (
-    <ThemeContext.Provider
-      value={{ theme, setTheme, fontSize, setFontSize }}
-    >
+    <ThemeContext.Provider value={value}>
       {children}
     </ThemeContext.Provider>
   );

@@ -1,9 +1,17 @@
 import { useRouter } from "expo-router";
-import { Pressable, StyleSheet, View, Switch, Modal } from "react-native";
+import {
+  Pressable,
+  StyleSheet,
+  View,
+  Switch,
+  Modal,
+  Alert,
+} from "react-native";
 import { useState } from "react";
 import { useAuth } from "@/src/lib/auth";
 import { Ionicons } from "@expo/vector-icons";
 import Constants from "expo-constants";
+import * as Haptics from "expo-haptics";
 
 import { useTheme, getFontSizeValue } from "@/src/context/theme";
 import { lightTheme, darkTheme } from "@/src/theme/colors";
@@ -11,50 +19,66 @@ import { lightTheme, darkTheme } from "@/src/theme/colors";
 import Screen from "@/src/components/Screen";
 import AppText from "@/src/components/AppText";
 
+import {
+  useSettings,
+  updateSettings,
+  resetSettings,
+} from "@/src/lib/settings";
+
+type SettingKey =
+  | "language"
+  | "temperature"
+  | "theme"
+  | "fontSize"
+  | "";
+
 export default function Settings() {
   const router = useRouter();
   const { logout } = useAuth();
-  const { theme, setTheme, fontSize, setFontSize } = useTheme();
+  const { theme, fontSize } = useTheme();
 
+  const settings = useSettings();
   const colors = theme === "dark" ? darkTheme : lightTheme;
 
   const [modalVisible, setModalVisible] = useState(false);
-  const [activeSetting, setActiveSetting] = useState("");
-
-  const [language, setLanguage] = useState("Suomi");
-  const [temperature, setTemperature] = useState("C");
-  const [themeLabel, setThemeLabel] = useState("Tumma");
-
-  const [pushEnabled, setPushEnabled] = useState(true);
-  const [soundEnabled, setSoundEnabled] = useState(false);
-  const [vibrationEnabled, setVibrationEnabled] = useState(true);
+  const [activeSetting, setActiveSetting] =
+    useState<SettingKey>("");
 
   const handleLogout = () => {
     logout();
     router.replace("/login");
   };
 
-  const openModal = (type: string) => {
+  const openModal = (type: SettingKey) => {
     setActiveSetting(type);
     setModalVisible(true);
   };
 
   const selectOption = (value: string) => {
-    if (activeSetting === "language") setLanguage(value);
-    if (activeSetting === "temperature") setTemperature(value);
+    Haptics.selectionAsync();
+
+    if (activeSetting === "language") {
+      updateSettings({ language: value });
+    }
+
+    if (activeSetting === "temperature") {
+      updateSettings({ temperature: value as "C" | "F" });
+    }
 
     if (activeSetting === "theme") {
-      setThemeLabel(value);
-      setTheme(value === "Tumma" ? "dark" : "light");
+      updateSettings({
+        theme: value === "Tumma" ? "dark" : "light",
+      });
     }
 
     if (activeSetting === "fontSize") {
-      const map: any = {
+      const map: Record<string, "small" | "medium" | "large"> = {
         Pieni: "small",
         Keskikoko: "medium",
         Suuri: "large",
       };
-      setFontSize(map[value]);
+
+      updateSettings({ fontSize: map[value] });
     }
 
     setModalVisible(false);
@@ -76,7 +100,7 @@ export default function Settings() {
   };
 
   const getFontLabel = () => {
-    switch (fontSize) {
+    switch (settings.fontSize) {
       case "small":
         return "Pieni";
       case "large":
@@ -85,6 +109,49 @@ export default function Settings() {
         return "Keskikoko";
     }
   };
+
+  const themeLabel =
+    settings.theme === "dark" ? "Tumma" : "Vaalea";
+
+  const getCurrentValue = () => {
+    switch (activeSetting) {
+      case "language":
+        return settings.language;
+      case "temperature":
+        return settings.temperature;
+      case "theme":
+        return themeLabel;
+      case "fontSize":
+        return getFontLabel();
+      default:
+        return "";
+    }
+  };
+
+  const SettingsRow = ({
+    icon,
+    label,
+    value,
+    onPress,
+  }: any) => (
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.row,
+        { opacity: pressed ? 0.6 : 1 },
+      ]}
+    >
+      <View style={styles.rowLeft}>
+        <Ionicons name={icon} size={20} color={colors.text} />
+        <AppText style={{ color: colors.text }}>
+          {label}
+        </AppText>
+      </View>
+      <AppText style={{ color: colors.text }}>
+        {value} ›
+      </AppText>
+    </Pressable>
+  );
 
   return (
     <Screen>
@@ -101,47 +168,33 @@ export default function Settings() {
         Yleiset
       </AppText>
 
-      {/* FONT SIZE */}
-      <Pressable style={styles.row} onPress={() => openModal("fontSize")}>
-        <View style={styles.rowLeft}>
-          <Ionicons name="text-outline" size={20} color={colors.text} />
-          <AppText style={{ color: colors.text }}>Fonttikoko</AppText>
-        </View>
-        <AppText style={{ color: colors.text }}>
-          {getFontLabel()} ›
-        </AppText>
-      </Pressable>
+      <SettingsRow
+        icon="text-outline"
+        label="Fonttikoko"
+        value={getFontLabel()}
+        onPress={() => openModal("fontSize")}
+      />
 
-      {/* LANGUAGE */}
-      <Pressable style={styles.row} onPress={() => openModal("language")}>
-        <View style={styles.rowLeft}>
-          <Ionicons name="language-outline" size={20} color={colors.text} />
-          <AppText style={{ color: colors.text }}>Kieli</AppText>
-        </View>
-        <AppText style={{ color: colors.text }}>{language} ›</AppText>
-      </Pressable>
+      <SettingsRow
+        icon="language-outline"
+        label="Kieli"
+        value={settings.language}
+        onPress={() => openModal("language")}
+      />
 
-      {/* TEMP */}
-      <Pressable style={styles.row} onPress={() => openModal("temperature")}>
-        <View style={styles.rowLeft}>
-          <Ionicons name="thermometer-outline" size={20} color={colors.text} />
-          <AppText style={{ color: colors.text }}>Lämpötila</AppText>
-        </View>
-        <AppText style={{ color: colors.text }}>{temperature} ›</AppText>
-      </Pressable>
+      <SettingsRow
+        icon="thermometer-outline"
+        label="Lämpötila"
+        value={settings.temperature}
+        onPress={() => openModal("temperature")}
+      />
 
-      {/* THEME */}
-      <Pressable style={styles.row} onPress={() => openModal("theme")}>
-        <View style={styles.rowLeft}>
-          <Ionicons
-            name="color-palette-outline"
-            size={20}
-            color={colors.text}
-          />
-          <AppText style={{ color: colors.text }}>Teema</AppText>
-        </View>
-        <AppText style={{ color: colors.text }}>{themeLabel} ›</AppText>
-      </Pressable>
+      <SettingsRow
+        icon="color-palette-outline"
+        label="Teema"
+        value={themeLabel}
+        onPress={() => openModal("theme")}
+      />
 
       <View style={[styles.divider, { backgroundColor: colors.border }]} />
 
@@ -159,25 +212,101 @@ export default function Settings() {
       </AppText>
 
       <View style={styles.row}>
-        <AppText style={{ color: colors.text }}>Push-ilmoitukset</AppText>
-        <Switch value={pushEnabled} onValueChange={setPushEnabled} />
+        <AppText style={{ color: colors.text }}>
+          Push-ilmoitukset
+        </AppText>
+        <Switch
+          value={settings.pushEnabled}
+          onValueChange={(value) => {
+            Haptics.selectionAsync();
+            updateSettings({ pushEnabled: value });
+          }}
+        />
       </View>
 
       <View style={styles.row}>
-        <AppText style={{ color: colors.text }}>Ääni</AppText>
-        <Switch value={soundEnabled} onValueChange={setSoundEnabled} />
+        <AppText style={{ color: colors.text }}>
+          Ääni
+        </AppText>
+        <Switch
+          value={settings.soundEnabled}
+          onValueChange={(value) => {
+            Haptics.selectionAsync();
+            updateSettings({ soundEnabled: value });
+          }}
+        />
       </View>
 
       <View style={styles.row}>
-        <AppText style={{ color: colors.text }}>Värinä</AppText>
-        <Switch value={vibrationEnabled} onValueChange={setVibrationEnabled} />
+        <AppText style={{ color: colors.text }}>
+          Värinä
+        </AppText>
+        <Switch
+          value={settings.vibrationEnabled}
+          onValueChange={(value) => {
+            Haptics.selectionAsync();
+            updateSettings({ vibrationEnabled: value });
+          }}
+        />
       </View>
 
       <View style={[styles.divider, { backgroundColor: colors.border }]} />
 
-      {/* LOGOUT */}
-      <Pressable style={styles.logoutButton} onPress={handleLogout}>
-        <AppText style={styles.logoutText}>Kirjaudu ulos</AppText>
+      {/* ACTIONS */}
+      <Pressable
+        style={[styles.actionButton, { backgroundColor: "#ff9500" }]}
+        onPress={() => {
+          Alert.alert(
+            "Palauta asetukset",
+            "Haluatko varmasti palauttaa oletusasetukset?",
+            [
+              { text: "Ei", style: "cancel" },
+              {
+                text: "Kyllä",
+                style: "destructive",
+                onPress: async () => {
+                  Haptics.notificationAsync(
+                    Haptics.NotificationFeedbackType.Warning
+                  );
+                  await resetSettings();
+                },
+              },
+            ]
+          );
+        }}
+      >
+        <AppText style={styles.actionText}>
+          Palauta oletukset
+        </AppText>
+      </Pressable>
+
+      <View style={[styles.divider, { backgroundColor: colors.border }]} />
+
+      <Pressable
+        style={[styles.actionButton, { backgroundColor: "#ff3b30" }]}
+        onPress={() => {
+          Alert.alert(
+            "Kirjaudu ulos",
+            "Haluatko varmasti kirjautua ulos?",
+            [
+              { text: "Ei", style: "cancel" },
+              {
+                text: "Kyllä",
+                style: "destructive",
+                onPress: () => {
+                  Haptics.notificationAsync(
+                    Haptics.NotificationFeedbackType.Warning
+                  );
+                  handleLogout();
+                },
+              },
+            ]
+          );
+        }}
+      >
+        <AppText style={styles.actionText}>
+          Kirjaudu ulos
+        </AppText>
       </Pressable>
 
       <View style={[styles.divider, { backgroundColor: colors.border }]} />
@@ -210,31 +339,44 @@ export default function Settings() {
       </View>
 
       {/* MODAL */}
-      <Modal visible={modalVisible} transparent animationType="slide">
-        <View style={styles.modalOverlay}>
-          <View
+      <Modal visible={modalVisible} transparent animationType="fade">
+        <Pressable
+          style={styles.modalOverlay}
+          onPress={() => setModalVisible(false)}
+        >
+          <Pressable
             style={[
               styles.modalContent,
               { backgroundColor: colors.background },
             ]}
+            onPress={(e) => e.stopPropagation()}
           >
-            {getOptions().map((option) => (
-              <Pressable
-                key={option}
-                style={styles.option}
-                onPress={() => selectOption(option)}
-              >
-                <AppText style={{ color: colors.text }}>
-                  {option}
-                </AppText>
-              </Pressable>
-            ))}
+            {getOptions().map((option) => {
+              const selected =
+                option === getCurrentValue();
+
+              return (
+                <Pressable
+                  key={option}
+                  style={styles.option}
+                  onPress={() => selectOption(option)}
+                >
+                  <AppText style={{ color: colors.text }}>
+                    {option} {selected ? "✓" : ""}
+                  </AppText>
+                </Pressable>
+              );
+            })}
 
             <Pressable onPress={() => setModalVisible(false)}>
-              <AppText style={styles.cancel}>Peruuta</AppText>
+              <AppText
+                style={[styles.cancel, { color: colors.text }]}
+              >
+                Peruuta
+              </AppText>
             </Pressable>
-          </View>
-        </View>
+          </Pressable>
+        </Pressable>
       </Modal>
     </Screen>
   );
@@ -243,67 +385,57 @@ export default function Settings() {
 const styles = StyleSheet.create({
   sectionTitle: {
     fontWeight: "600",
-    marginVertical: 10,
+    marginVertical: 12,
   },
-
   row: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
     paddingVertical: 14,
   },
-
   rowLeft: {
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
     flex: 1,
   },
-
   divider: {
     height: 1,
-    marginVertical: 16,
+    marginVertical: 18,
   },
-
-  logoutButton: {
-    backgroundColor: "#ff3b30",
+  actionButton: {
     padding: 14,
     borderRadius: 8,
     alignItems: "center",
   },
-
-  logoutText: {
+  actionText: {
     color: "#fff",
     fontWeight: "600",
   },
-
   infoBox: {
     marginTop: 10,
     padding: 12,
     borderRadius: 8,
   },
-
   modalOverlay: {
     flex: 1,
-    justifyContent: "flex-end",
+    justifyContent: "center",
+    alignItems: "center",
     backgroundColor: "rgba(0,0,0,0.3)",
   },
-
   modalContent: {
     padding: 20,
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
+    borderRadius: 16,
+    width: "80%",
   },
-
   option: {
     paddingVertical: 14,
     borderBottomWidth: 1,
     borderColor: "#eee",
   },
-
   cancel: {
     textAlign: "center",
-    marginTop: 10,
+    marginTop: 12,
     fontWeight: "600",
   },
 });
