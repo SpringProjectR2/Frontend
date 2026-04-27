@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from "react";
 import { io, type Socket } from "socket.io-client";
+import { getBackendUrl } from "@/src/lib/backendConfig";
 
 export type ReadingPayload = {
   label: string;
@@ -30,7 +31,7 @@ let reconnectWatchdog: ReturnType<typeof setInterval> | null = null;
 
 let socketStatus: SocketStatus = {
   state: "idle",
-  backendUrl: process.env.EXPO_PUBLIC_BACKEND_URL ?? null,
+  backendUrl: null,
   lastMessageAt: null,
   errorMessage: null,
 };
@@ -146,18 +147,26 @@ const handleSensorEvent = (payload: unknown) => {
 };
 
 const ensureSocket = () => {
-  if (socket) {
-    return socket;
-  }
+  const backendUrl = getBackendUrl() ?? "";
 
-  const backendUrl = process.env.EXPO_PUBLIC_BACKEND_URL ?? "";
   if (!backendUrl) {
     setSocketStatus({
       state: "error",
       backendUrl: null,
-      errorMessage: "EXPO_PUBLIC_BACKEND_URL is not set",
+      errorMessage: "Backend URL is not set",
     });
     return null;
+  }
+
+  if (socket) {
+    if (socketStatus.backendUrl === backendUrl) {
+      return socket;
+    }
+
+    socket.off(SENSOR_EVENT, handleSensorEvent);
+    socket.removeAllListeners();
+    socket.disconnect();
+    socket = null;
   }
 
   socket = io(backendUrl, {
@@ -247,7 +256,7 @@ export const disconnectSocket = () => {
   if (!socket) {
     isBootstrapped = false;
     stopReconnectWatchdog();
-    setSocketStatus({ state: "idle" });
+    setSocketStatus({ state: "idle", backendUrl: getBackendUrl() });
     return;
   }
 
@@ -260,6 +269,7 @@ export const disconnectSocket = () => {
 
   setSocketStatus({
     state: "idle",
+    backendUrl: getBackendUrl(),
     errorMessage: null,
   });
 };
