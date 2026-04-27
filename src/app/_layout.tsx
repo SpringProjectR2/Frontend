@@ -15,16 +15,34 @@ Notifications.setNotificationHandler({
     shouldShowList: true,
   }),
 });
+import {
+  hydrateBackendConfig,
+  useBackendConfig,
+} from '@/src/lib/backendConfig';
+import { bootstrapSocket, disconnectSocket } from '@/src/lib/socketService';
 
 function RootNavigator() {
   const { isLoggedIn } = useAuth();
+  const { backendUrl, hasConfirmedConnection } = useBackendConfig();
+
+  useEffect(() => {
+    if (isLoggedIn && hasConfirmedConnection && backendUrl) {
+      bootstrapSocket();
+      return;
+    }
+
+    disconnectSocket();
+  }, [backendUrl, hasConfirmedConnection, isLoggedIn]);
 
   return (
     <Stack>
-      <Stack.Protected guard={!isLoggedIn}>
+      <Stack.Protected guard={!hasConfirmedConnection}>
+        <Stack.Screen name="connect" options={{ headerShown: false }} />
+      </Stack.Protected>
+      <Stack.Protected guard={hasConfirmedConnection && !isLoggedIn}>
         <Stack.Screen name="login" options={{ headerShown: false }} />
       </Stack.Protected>
-      <Stack.Protected guard={isLoggedIn}>
+      <Stack.Protected guard={hasConfirmedConnection && isLoggedIn}>
         <Stack.Screen name="(private)/(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="(private)/sensor" options={{ title: "Sensor" }} />
       </Stack.Protected>
@@ -36,6 +54,11 @@ export default function RootLayout() {
   const [fontsLoaded] = useFonts({
     Inter_400Regular,
   });
+  const { hydrated } = useBackendConfig();
+
+  useEffect(() => {
+    hydrateBackendConfig();
+  }, []);
 
   useEffect(() => {
     const requestNotificationPermission = async () => {
@@ -56,7 +79,7 @@ export default function RootLayout() {
     requestNotificationPermission();
   }, []);
 
-  if (!fontsLoaded) {
+  if (!fontsLoaded || !hydrated) {
     return null;
   }
 

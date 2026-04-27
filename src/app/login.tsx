@@ -15,15 +15,25 @@ import {
   View,
 } from "react-native";
 import { useAuth } from "@/src/lib/auth";
+import {
+  resetConnectionConfirmation,
+  useBackendConfig,
+} from "@/src/lib/backendConfig";
 
 const SKIP_LOGIN_FETCH = true;
 
 export default function Login() {
   const router = useRouter();
   const { login } = useAuth();
+  const { backendUrl } = useBackendConfig();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+
+  const handleBackToConnect = () => {
+    resetConnectionConfirmation();
+    router.replace("/connect");
+  };
 
   const handleLogin = async () => {
     if (!username.trim() || !password) {
@@ -38,8 +48,6 @@ export default function Login() {
         router.replace("/");
         return;
       }
-
-      const backendUrl = process.env.EXPO_PUBLIC_BACKEND_URL;
 
       if (!backendUrl) {
         Alert.alert("Configuration error", "Backend URL is not configured.");
@@ -116,6 +124,13 @@ export default function Login() {
               <Text style={styles.buttonText}>Sign in</Text>
             )}
           </Pressable>
+          <Pressable
+            style={[styles.linkButton, isLoading && styles.buttonDisabled]}
+            onPress={handleBackToConnect}
+            disabled={isLoading}
+          >
+            <Text style={styles.linkButtonText}>Back to Connect</Text>
+          </Pressable>
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -173,5 +188,17 @@ const styles = StyleSheet.create({
     color: "#000000",
     fontSize: 16,
     fontWeight: "600",
+  },
+  linkButton: {
+    marginTop: 2,
+    height: 40,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  linkButtonText: {
+    color: "#000000",
+    fontSize: 15,
+    fontWeight: "500",
+    textDecorationLine: "underline",
   },
 });
