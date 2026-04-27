@@ -16,6 +16,10 @@ export default function TabLayout() {
         <NativeTabs.Trigger.Icon sf="sensor" md="sensors" />
         <NativeTabs.Trigger.Label>Sensors</NativeTabs.Trigger.Label>
       </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="alerts" contentStyle={sharedContentStyle}>
+        <NativeTabs.Trigger.Icon sf="bell" md="notifications" />
+        <NativeTabs.Trigger.Label>Alerts</NativeTabs.Trigger.Label>
+      </NativeTabs.Trigger>
       <NativeTabs.Trigger name="settings" contentStyle={sharedContentStyle}>
         <NativeTabs.Trigger.Icon sf="gear" md="settings" />
         <NativeTabs.Trigger.Label>Settings</NativeTabs.Trigger.Label>
