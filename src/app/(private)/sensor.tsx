@@ -7,13 +7,42 @@ import { useMemo, useState } from "react";
 import { useSensorData } from "@/src/lib/sensorData";
 import { useSocketStatus } from "@/src/lib/socketService";
 
-const formatTimeLabel = (time: string) => {
+const getDeviceTimeZone = () =>
+  Intl.DateTimeFormat().resolvedOptions().timeZone;
+
+const formatTimeLabel = (time: string, timeZone: string) => {
   const date = new Date(time);
   if (!Number.isFinite(date.getTime())) {
     return time;
   }
 
-  return date.toISOString().slice(11, 19);
+  return new Intl.DateTimeFormat("en-GB", {
+    timeZone,
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  }).format(date);
+};
+
+const getMonthKey = (time: string, timeZone: string) => {
+  const date = new Date(time);
+  if (!Number.isFinite(date.getTime())) {
+    return null;
+  }
+
+  const parts = new Intl.DateTimeFormat("en", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+  }).formatToParts(date);
+  const year = parts.find((part) => part.type === "year")?.value;
+  const month = parts.find((part) => part.type === "month")?.value;
+  if (!year || !month) {
+    return null;
+  }
+
+  return `${year}-${month}`;
 };
 
 export default function Sensor() {
@@ -33,16 +62,18 @@ export default function Sensor() {
   const socketStatus = useSocketStatus();
   const isStale = socketStatus.state === "stale" || socketStatus.state === "error";
 
+  const deviceTimeZone = useMemo(() => getDeviceTimeZone(), []);
+
   const months = useMemo(() => {
     const uniqueMonths = new Set<string>();
     data.forEach((point) => {
-      const date = new Date(point.time);
-      if (Number.isFinite(date.getTime())) {
-        uniqueMonths.add(date.toISOString().slice(0, 7));
+      const monthKey = getMonthKey(point.time, deviceTimeZone);
+      if (monthKey) {
+        uniqueMonths.add(monthKey);
       }
     });
     return Array.from(uniqueMonths).sort();
-  }, [data]);
+  }, [data, deviceTimeZone]);
 
   const activeMonth = selectedMonth ?? months[months.length - 1] ?? null;
   const filteredData = useMemo(() => {
@@ -50,14 +81,10 @@ export default function Sensor() {
       return data;
     }
 
-    return data.filter((point) => {
-      const date = new Date(point.time);
-      if (!Number.isFinite(date.getTime())) {
-        return false;
-      }
-      return date.toISOString().startsWith(activeMonth);
-    });
-  }, [data, viewMode, activeMonth]);
+    return data.filter((point) =>
+      getMonthKey(point.time, deviceTimeZone) === activeMonth,
+    );
+  }, [data, viewMode, activeMonth, deviceTimeZone]);
 
   const font = useFont(
     require("@expo-google-fonts/inter/400Regular/Inter_400Regular.ttf"),
@@ -141,7 +168,8 @@ export default function Sensor() {
           yKeys={[selectedMetric]}
           axisOptions={{
             font,
-            formatXLabel: (label) => formatTimeLabel(String(label)),
+            formatXLabel: (label) =>
+              formatTimeLabel(String(label), deviceTimeZone),
           }}
         >
           {({ points }) => {
@@ -171,7 +199,7 @@ export default function Sensor() {
             }}
           >
             <Text style={{ flex: 1, padding: 8 }}>
-              {formatTimeLabel(point.time)}
+              {formatTimeLabel(point.time, deviceTimeZone)}
             </Text>
             <Text style={{ width: 100, padding: 8 }}>
               {(selectedMetric === "humidity" ? point.humidity : point.temperature).toFixed(1)} {metricUnit}
