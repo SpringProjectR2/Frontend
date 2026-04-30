@@ -1,95 +1,114 @@
 import { useEffect, useState } from "react";
+import { getAccessToken } from "@/src/lib/auth";
+import { getBackendUrl } from "@/src/lib/backendConfig";
 import { subscribeSensorStream } from "@/src/lib/socketService";
 
 export type Reading = {
-  timestamp: number;
-  value: number;
+  time: string;
+  temperature: number;
+  humidity: number;
 };
 
 const sensorSeries = new Map<string, Reading[]>();
 const listenersBySensor = new Map<string, Set<() => void>>();
 const socketUnsubscribeBySensor = new Map<string, () => void>();
+const hydratedHistoryBySensor = new Set<string>();
+
 const MAX_POINTS = 240;
 
 const getSeries = (label: string): Reading[] => {
-  const existing = sensorSeries.get(label);
-  if (existing) {
-    return existing;
+  if (!sensorSeries.has(label)) {
+    sensorSeries.set(label, []);
   }
-
-  const seeded: Reading[] = [];
-  sensorSeries.set(label, seeded);
-  return seeded;
+  return sensorSeries.get(label)!;
 };
 
 const notify = (label: string) => {
-  const listeners = listenersBySensor.get(label);
-  if (!listeners) return;
-
-  for (const listener of listeners) {
-    listener();
-  }
+  listenersBySensor.get(label)?.forEach((l) => l());
 };
 
-const pushNextReading = (label: string, nextReading: Reading) => {
-  const series = getSeries(label);
-  const updated = [...series, nextReading].slice(-MAX_POINTS);
+const pushNextReading = (label: string, next: Reading) => {
+  const updated = [...getSeries(label), next].slice(-MAX_POINTS);
   sensorSeries.set(label, updated);
   notify(label);
 };
 
-const ensureSocketSubscription = (label: string) => {
-  if (socketUnsubscribeBySensor.has(label)) {
-    return;
-  }
+const hydrateHistory = async (label: string) => {
+  if (hydratedHistoryBySensor.has(label)) return;
+  hydratedHistoryBySensor.add(label);
 
-  const unsubscribe = subscribeSensorStream(label, (reading) => {
+  const backendUrl = getBackendUrl();
+  const token = getAccessToken();
+  if (!backendUrl || !token) return;
+
+  try {
+    const res = await fetch(
+      `${backendUrl}/history/${encodeURIComponent(label)}?hours=24&limit=100`,
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+
+    if (!res.ok) return;
+
+    const payload = await res.json();
+    if (!Array.isArray(payload)) return;
+
+    const parsed: Reading[] = payload
+      .map((e) => {
+        if (!e?.time || !e?.temperature) return null;
+        return {
+          time: e.time,
+          temperature: e.temperature,
+          humidity: Number(e.humidity) || 0,
+        };
+      })
+      .filter(Boolean);
+
+    sensorSeries.set(label, [...getSeries(label), ...parsed].slice(-MAX_POINTS));
+    notify(label);
+  } catch {}
+};
+
+const ensureSocket = (label: string) => {
+  if (socketUnsubscribeBySensor.has(label)) return;
+
+  const unsub = subscribeSensorStream(label, (r) => {
     pushNextReading(label, {
-      timestamp: reading.timestamp,
-      value: reading.value,
+      time: new Date(r.timestamp * 1000).toISOString(),
+      temperature: r.value,
+      humidity: r.humidity,
     });
   });
 
-  socketUnsubscribeBySensor.set(label, unsubscribe);
+  socketUnsubscribeBySensor.set(label, unsub);
 };
 
-const subscribe = (label: string, listener: () => void) => {
-  const listeners = listenersBySensor.get(label) ?? new Set<() => void>();
-  listeners.add(listener);
-  listenersBySensor.set(label, listeners);
+const subscribe = (label: string, cb: () => void) => {
+  const set = listenersBySensor.get(label) ?? new Set();
+  set.add(cb);
+  listenersBySensor.set(label, set);
 
-  ensureSocketSubscription(label);
+  ensureSocket(label);
 
   return () => {
-    const currentListeners = listenersBySensor.get(label);
-    if (!currentListeners) {
-      return;
-    }
-
-    currentListeners.delete(listener);
-
-    if (currentListeners.size === 0) {
+    set.delete(cb);
+    if (!set.size) {
       listenersBySensor.delete(label);
-      const unsubscribe = socketUnsubscribeBySensor.get(label);
-      if (unsubscribe) {
-        unsubscribe();
-        socketUnsubscribeBySensor.delete(label);
-      }
+      socketUnsubscribeBySensor.get(label)?.();
+      socketUnsubscribeBySensor.delete(label);
     }
   };
 };
 
-export const useSensorData = (label: string): Reading[] => {
-  const [data, setData] = useState<Reading[]>(() => getSeries(label));
+export const useSensorData = (label: string) => {
+  const [data, setData] = useState(getSeries(label));
 
   useEffect(() => {
     setData(getSeries(label));
+    hydrateHistory(label);
 
-    const unsubscribe = subscribe(label, () => {
+    return subscribe(label, () => {
       setData(getSeries(label));
     });
-
-    return unsubscribe;
   }, [label]);
 
   return data;

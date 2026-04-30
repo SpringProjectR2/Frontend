@@ -12,6 +12,7 @@ import {
   TextInput,
   View,
 } from "react-native";
+
 import { setBackendUrl, useBackendConfig } from "@/src/lib/backendConfig";
 import { useTheme } from "@/src/context/theme";
 import { lightTheme, darkTheme } from "@/src/theme/colors";
@@ -41,7 +42,10 @@ export default function Connect() {
       await setBackendUrl(address);
       router.replace("/login");
     } catch {
-      Alert.alert("Invalid address", "Enter an IP or URL like 192.168.0.10:5000");
+      Alert.alert(
+        "Invalid address",
+        "Enter an IP or URL like 192.168.0.10:5000"
+      );
     } finally {
       setIsSaving(false);
     }
@@ -66,7 +70,7 @@ export default function Connect() {
             value={address}
             onChangeText={setAddress}
             placeholder="192.168.0.10:5000"
-            placeholderTextColor="#888"
+            placeholderTextColor={colors.border}
             autoCapitalize="none"
             autoCorrect={false}
             keyboardType="url"
@@ -74,7 +78,7 @@ export default function Connect() {
               styles.input,
               {
                 color: colors.text,
-                borderColor: colors.text,
+                borderColor: colors.border,
                 backgroundColor: colors.card,
               },
             ]}

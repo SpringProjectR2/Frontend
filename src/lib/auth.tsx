@@ -2,22 +2,36 @@ import { createContext, ReactNode, useContext, useMemo, useState } from "react";
 
 type AuthContextValue = {
   isLoggedIn: boolean;
-  login: () => void;
+  accessToken: string | null;
+  login: (token?: string) => void;
   logout: () => void;
 };
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
+let currentAccessToken: string | null = null;
+
+export const getAccessToken = () => currentAccessToken;
+
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [accessToken, setAccessToken] = useState<string | null>(null);
+  const isLoggedIn = Boolean(accessToken);
 
   const value = useMemo(
     () => ({
       isLoggedIn,
-      login: () => setIsLoggedIn(true),
-      logout: () => setIsLoggedIn(false),
+      accessToken,
+      login: (token?: string) => {
+        const resolved = token ?? "dev-token"; // fallback for SKIP_LOGIN_FETCH
+        currentAccessToken = resolved;
+        setAccessToken(resolved);
+      },
+      logout: () => {
+        currentAccessToken = null;
+        setAccessToken(null);
+      },
     }),
-    [isLoggedIn],
+    [accessToken],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
@@ -25,10 +39,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
 export function useAuth() {
   const context = useContext(AuthContext);
-
   if (!context) {
     throw new Error("useAuth must be used within an AuthProvider");
   }
-
   return context;
 }

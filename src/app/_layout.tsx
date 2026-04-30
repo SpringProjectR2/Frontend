@@ -1,5 +1,6 @@
 import { Inter_400Regular } from "@expo-google-fonts/inter";
 import { useFonts } from "expo-font";
+import * as Notifications from "expo-notifications";
 import { Stack, useRouter, useSegments } from "expo-router";
 import { useEffect } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
@@ -22,6 +23,17 @@ import {
   useSettings,
 } from "@/src/lib/settings";
 
+import { isNotificationsEnabled } from "@/src/lib/notificationSettings";
+
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldPlaySound: true,
+    shouldSetBadge: false,
+    shouldShowBanner: true,
+    shouldShowList: true,
+  }),
+});
+
 function NavigationGuard() {
   const router = useRouter();
   const segments = useSegments();
@@ -38,13 +50,17 @@ function NavigationGuard() {
     }
 
     if (!isLoggedIn) {
-      if (segments[0] !== "login") {
+      if (segments[0] !== "login" && segments[0] !== "register") {
         router.replace("/login");
       }
       return;
     }
 
-    if (segments[0] === "login" || segments[0] === "connect") {
+    if (
+      segments[0] === "login" ||
+      segments[0] === "connect" ||
+      segments[0] === "register"
+    ) {
       router.replace("/(private)/(tabs)");
     }
   }, [isLoggedIn, hasConfirmedConnection, segments]);
@@ -71,6 +87,7 @@ function RootNavigator() {
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="connect" />
         <Stack.Screen name="login" />
+        <Stack.Screen name="register" />
         <Stack.Screen name="(private)/(tabs)" />
         <Stack.Screen
           name="(private)/sensor"
@@ -87,14 +104,30 @@ export default function RootLayout() {
   });
 
   const { hydrated: backendHydrated } = useBackendConfig();
-  const { hydrated: settingsHydrated } = useSettings(); 
+  const { hydrated: settingsHydrated } = useSettings();
 
   useEffect(() => {
     hydrateBackendConfig();
-    hydrateSettings(); 
+    hydrateSettings();
   }, []);
 
-  // ✅ WAIT FOR BOTH
+  useEffect(() => {
+    const requestPermission = async () => {
+      if (!isNotificationsEnabled()) return;
+
+      try {
+        const { status } = await Notifications.getPermissionsAsync();
+        if (status !== "granted") {
+          await Notifications.requestPermissionsAsync();
+        }
+      } catch (err) {
+        console.warn("Notification permission error:", err);
+      }
+    };
+
+    requestPermission();
+  }, []);
+
   if (!fontsLoaded || !backendHydrated || !settingsHydrated) {
     return null;
   }

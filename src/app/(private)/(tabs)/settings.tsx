@@ -8,6 +8,7 @@ import {
   Alert,
 } from "react-native";
 import { useState } from "react";
+import * as Notifications from "expo-notifications";
 import { useAuth } from "@/src/lib/auth";
 import { Ionicons } from "@expo/vector-icons";
 import Constants from "expo-constants";
@@ -24,6 +25,13 @@ import {
   updateSettings,
   resetSettings,
 } from "@/src/lib/settings";
+
+import {
+  isNotificationsEnabled,
+  isNotificationSoundEnabled,
+  setNotificationsEnabled,
+  setNotificationSoundEnabled,
+} from "@/src/lib/notificationSettings";
 
 type SettingKey =
   | "language"
@@ -43,6 +51,9 @@ export default function Settings() {
   const [modalVisible, setModalVisible] = useState(false);
   const [activeSetting, setActiveSetting] =
     useState<SettingKey>("");
+
+  const [isUpdatingNotifications, setIsUpdatingNotifications] =
+    useState(false);
 
   const handleLogout = () => {
     logout();
@@ -128,6 +139,36 @@ export default function Settings() {
     }
   };
 
+  const handleToggleNotifications = async (enabled: boolean) => {
+    if (isUpdatingNotifications) return;
+
+    Haptics.selectionAsync();
+
+    if (!enabled) {
+      updateSettings({ pushEnabled: false });
+      setNotificationsEnabled(false);
+      return;
+    }
+
+    setIsUpdatingNotifications(true);
+
+    try {
+      const { status } = await Notifications.requestPermissionsAsync();
+      const granted = status === "granted";
+
+      updateSettings({ pushEnabled: granted });
+      setNotificationsEnabled(granted);
+    } finally {
+      setIsUpdatingNotifications(false);
+    }
+  };
+
+  const handleToggleSound = (enabled: boolean) => {
+    Haptics.selectionAsync();
+    updateSettings({ soundEnabled: enabled });
+    setNotificationSoundEnabled(enabled);
+  };
+
   const SettingsRow = ({
     icon,
     label,
@@ -155,7 +196,7 @@ export default function Settings() {
 
   return (
     <Screen>
-      {/* YLEISET */}
+      {/* GENERAL */}
       <AppText
         style={[
           styles.sectionTitle,
@@ -217,10 +258,8 @@ export default function Settings() {
         </AppText>
         <Switch
           value={settings.pushEnabled}
-          onValueChange={(value) => {
-            Haptics.selectionAsync();
-            updateSettings({ pushEnabled: value });
-          }}
+          onValueChange={handleToggleNotifications}
+          disabled={isUpdatingNotifications}
         />
       </View>
 
@@ -230,10 +269,8 @@ export default function Settings() {
         </AppText>
         <Switch
           value={settings.soundEnabled}
-          onValueChange={(value) => {
-            Haptics.selectionAsync();
-            updateSettings({ soundEnabled: value });
-          }}
+          onValueChange={handleToggleSound}
+          disabled={!settings.pushEnabled}
         />
       </View>
 
@@ -265,9 +302,6 @@ export default function Settings() {
                 text: "Kyllä",
                 style: "destructive",
                 onPress: async () => {
-                  Haptics.notificationAsync(
-                    Haptics.NotificationFeedbackType.Warning
-                  );
                   await resetSettings();
                 },
               },
@@ -280,36 +314,14 @@ export default function Settings() {
         </AppText>
       </Pressable>
 
-      <View style={[styles.divider, { backgroundColor: colors.border }]} />
-
       <Pressable
         style={[styles.actionButton, { backgroundColor: "#ff3b30" }]}
-        onPress={() => {
-          Alert.alert(
-            "Kirjaudu ulos",
-            "Haluatko varmasti kirjautua ulos?",
-            [
-              { text: "Ei", style: "cancel" },
-              {
-                text: "Kyllä",
-                style: "destructive",
-                onPress: () => {
-                  Haptics.notificationAsync(
-                    Haptics.NotificationFeedbackType.Warning
-                  );
-                  handleLogout();
-                },
-              },
-            ]
-          );
-        }}
+        onPress={handleLogout}
       >
         <AppText style={styles.actionText}>
           Kirjaudu ulos
         </AppText>
       </Pressable>
-
-      <View style={[styles.divider, { backgroundColor: colors.border }]} />
 
       {/* INFO */}
       <AppText
@@ -328,11 +340,6 @@ export default function Settings() {
         <AppText style={{ color: colors.text }}>
           Versio: {Constants.expoConfig?.version ?? "1.0.0"}
         </AppText>
-
-        <AppText style={{ marginTop: 6, color: colors.text }}>
-          Tekijät: Aapo, Antti, Jan-Henrik ja Ville
-        </AppText>
-
         <AppText style={{ marginTop: 6, color: colors.text }}>
           © 2026
         </AppText>
@@ -407,6 +414,7 @@ const styles = StyleSheet.create({
     padding: 14,
     borderRadius: 8,
     alignItems: "center",
+    marginTop: 10,
   },
   actionText: {
     color: "#fff",

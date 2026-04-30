@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { MaterialIcons } from "@expo/vector-icons";
 import { SymbolView } from "expo-symbols";
-import { useRouter } from "expo-router";
+import { type Href, useRouter } from "expo-router";
 import {
   ActivityIndicator,
   Alert,
@@ -14,15 +14,15 @@ import {
   TextInput,
   View,
 } from "react-native";
+
 import { useAuth } from "@/src/lib/auth";
 import {
   resetConnectionConfirmation,
   useBackendConfig,
 } from "@/src/lib/backendConfig";
+
 import { useTheme } from "@/src/context/theme";
 import { lightTheme, darkTheme } from "@/src/theme/colors";
-
-const SKIP_LOGIN_FETCH = true;
 
 export default function Login() {
   const router = useRouter();
@@ -48,24 +48,22 @@ export default function Login() {
     }
 
     setIsLoading(true);
-    try {
-      if (SKIP_LOGIN_FETCH) {
-        login();
-        router.replace("/");
-        return;
-      }
 
+    try {
       if (!backendUrl) {
         Alert.alert("Configuration error", "Backend URL is not configured.");
         return;
       }
 
-      const encoded = btoa(`${username}:${password}`);
       const response = await fetch(`${backendUrl}/login`, {
-        method: "GET",
+        method: "POST",
         headers: {
-          Authorization: `Basic ${encoded}`,
+          "Content-Type": "application/json",
         },
+        body: JSON.stringify({
+          username: username.trim(),
+          password,
+        }),
       });
 
       if (!response.ok) {
@@ -73,7 +71,16 @@ export default function Login() {
         return;
       }
 
-      login();
+      const payload = (await response.json()) as {
+        access_token?: string;
+      };
+
+      if (!payload.access_token) {
+        Alert.alert("Login failed", "Server did not return an access token.");
+        return;
+      }
+
+      login(payload.access_token);
       router.replace("/");
     } catch {
       Alert.alert("Network error", "Unable to reach the server.");
@@ -107,14 +114,16 @@ export default function Login() {
           <TextInput
             value={username}
             onChangeText={setUsername}
+            autoCapitalize="none"
             style={[
               styles.input,
               {
                 color: colors.text,
-                borderColor: colors.text,
+                borderColor: colors.border,
                 backgroundColor: colors.card,
               },
             ]}
+            returnKeyType="next"
           />
 
           <Text style={[styles.title, { color: colors.text }]}>
@@ -128,10 +137,12 @@ export default function Login() {
               styles.input,
               {
                 color: colors.text,
-                borderColor: colors.text,
+                borderColor: colors.border,
                 backgroundColor: colors.card,
               },
             ]}
+            returnKeyType="done"
+            onSubmitEditing={handleLogin}
           />
 
           <Pressable
@@ -152,7 +163,21 @@ export default function Login() {
             )}
           </Pressable>
 
-          <Pressable onPress={handleBackToConnect}>
+          <Pressable
+            style={styles.linkButton}
+            onPress={() => router.push("/register" as Href)}
+            disabled={isLoading}
+          >
+            <Text style={[styles.linkButtonText, { color: colors.text }]}>
+              Register
+            </Text>
+          </Pressable>
+
+          <Pressable
+            style={styles.linkButton}
+            onPress={handleBackToConnect}
+            disabled={isLoading}
+          >
             <Text style={[styles.linkButtonText, { color: colors.text }]}>
               Back to Connect
             </Text>
@@ -208,11 +233,15 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "600",
   },
+  linkButton: {
+    marginTop: 4,
+    height: 40,
+    justifyContent: "center",
+    alignItems: "center",
+  },
   linkButtonText: {
     fontSize: 15,
     fontWeight: "500",
-    textAlign: "center",
-    marginTop: 10,
     textDecorationLine: "underline",
   },
 });
