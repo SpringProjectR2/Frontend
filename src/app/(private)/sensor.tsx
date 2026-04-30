@@ -1,18 +1,48 @@
-import { Text, View } from "react-native";
+import { Text, View, Pressable } from "react-native";
 import { useLocalSearchParams } from "expo-router";
 import { ScrollView } from "react-native-gesture-handler";
 import { useFont } from "@shopify/react-native-skia";
 import { CartesianChart, Line } from "victory-native";
+import { useMemo, useState } from "react";
 import { useSensorData } from "@/src/lib/sensorData";
 import { useSocketStatus } from "@/src/lib/socketService";
 
-const formatTimeLabel = (time: string) => {
+const getDeviceTimeZone = () =>
+  Intl.DateTimeFormat().resolvedOptions().timeZone;
+
+const formatTimeLabel = (time: string, timeZone: string) => {
   const date = new Date(time);
   if (!Number.isFinite(date.getTime())) {
     return time;
   }
 
-  return date.toISOString().slice(11, 19);
+  return new Intl.DateTimeFormat("en-GB", {
+    timeZone,
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  }).format(date);
+};
+
+const getMonthKey = (time: string, timeZone: string) => {
+  const date = new Date(time);
+  if (!Number.isFinite(date.getTime())) {
+    return null;
+  }
+
+  const parts = new Intl.DateTimeFormat("en", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+  }).formatToParts(date);
+  const year = parts.find((part) => part.type === "year")?.value;
+  const month = parts.find((part) => part.type === "month")?.value;
+  if (!year || !month) {
+    return null;
+  }
+
+  return `${year}-${month}`;
 };
 
 export default function Sensor() {
@@ -27,8 +57,34 @@ export default function Sensor() {
   const metricUnit = selectedMetric === "humidity" ? "%" : "°C";
   const metricColor = selectedMetric === "humidity" ? "#1f77b4" : "red";
   const data = useSensorData(sensorLabel);
+  const [viewMode, setViewMode] = useState<"all" | "month">("all");
+  const [selectedMonth, setSelectedMonth] = useState<string | null>(null);
   const socketStatus = useSocketStatus();
   const isStale = socketStatus.state === "stale" || socketStatus.state === "error";
+
+  const deviceTimeZone = useMemo(() => getDeviceTimeZone(), []);
+
+  const months = useMemo(() => {
+    const uniqueMonths = new Set<string>();
+    data.forEach((point) => {
+      const monthKey = getMonthKey(point.time, deviceTimeZone);
+      if (monthKey) {
+        uniqueMonths.add(monthKey);
+      }
+    });
+    return Array.from(uniqueMonths).sort();
+  }, [data, deviceTimeZone]);
+
+  const activeMonth = selectedMonth ?? months[months.length - 1] ?? null;
+  const filteredData = useMemo(() => {
+    if (viewMode === "all" || !activeMonth) {
+      return data;
+    }
+
+    return data.filter((point) =>
+      getMonthKey(point.time, deviceTimeZone) === activeMonth,
+    );
+  }, [data, viewMode, activeMonth, deviceTimeZone]);
 
   const font = useFont(
     require("@expo-google-fonts/inter/400Regular/Inter_400Regular.ttf"),
@@ -49,14 +105,71 @@ export default function Sensor() {
           Stale: displaying last known values while reconnecting.
         </Text>
       ) : null}
+      <View style={{ flexDirection: "row", marginBottom: 12, gap: 8 }}>
+        <Pressable
+          onPress={() => setViewMode("all")}
+          style={({ pressed }) => ({
+            paddingVertical: 6,
+            paddingHorizontal: 12,
+            borderRadius: 16,
+            backgroundColor: viewMode === "all" ? "#222" : "#eee",
+            opacity: pressed ? 0.7 : 1,
+          })}
+        >
+          <Text style={{ color: viewMode === "all" ? "#fff" : "#222" }}>
+            All
+          </Text>
+        </Pressable>
+        <Pressable
+          onPress={() => setViewMode("month")}
+          style={({ pressed }) => ({
+            paddingVertical: 6,
+            paddingHorizontal: 12,
+            borderRadius: 16,
+            backgroundColor: viewMode === "month" ? "#222" : "#eee",
+            opacity: pressed ? 0.7 : 1,
+          })}
+        >
+          <Text style={{ color: viewMode === "month" ? "#fff" : "#222" }}>
+            Monthly
+          </Text>
+        </Pressable>
+      </View>
+      {viewMode === "month" ? (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={{ gap: 8, paddingBottom: 8 }}
+        >
+          {months.map((month) => {
+            const isActive = month === activeMonth;
+            return (
+              <Pressable
+                key={month}
+                onPress={() => setSelectedMonth(month)}
+                style={({ pressed }) => ({
+                  paddingVertical: 6,
+                  paddingHorizontal: 12,
+                  borderRadius: 14,
+                  backgroundColor: isActive ? "#1f77b4" : "#f1f1f1",
+                  opacity: pressed ? 0.7 : 1,
+                })}
+              >
+                <Text style={{ color: isActive ? "#fff" : "#333" }}>{month}</Text>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+      ) : null}
       <View style={{ height: 300 }}>
         <CartesianChart
-          data={data}
+          data={filteredData}
           xKey="time"
           yKeys={[selectedMetric]}
           axisOptions={{
             font,
-            formatXLabel: (label) => formatTimeLabel(String(label)),
+            formatXLabel: (label) =>
+              formatTimeLabel(String(label), deviceTimeZone),
           }}
         >
           {({ points }) => {
@@ -76,7 +189,7 @@ export default function Sensor() {
             {metricLabel}
           </Text>
         </View>
-        {[...data].reverse().map((point, index) => (
+        {[...filteredData].reverse().map((point, index) => (
           <View
             key={`${point.time}-${index}`}
             style={{
@@ -86,7 +199,7 @@ export default function Sensor() {
             }}
           >
             <Text style={{ flex: 1, padding: 8 }}>
-              {formatTimeLabel(point.time)}
+              {formatTimeLabel(point.time, deviceTimeZone)}
             </Text>
             <Text style={{ width: 100, padding: 8 }}>
               {(selectedMetric === "humidity" ? point.humidity : point.temperature).toFixed(1)} {metricUnit}
