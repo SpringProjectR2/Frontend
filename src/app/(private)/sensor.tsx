@@ -1,8 +1,9 @@
-import { Text, View } from "react-native";
+import { Text, View, Pressable } from "react-native";
 import { useLocalSearchParams } from "expo-router";
 import { ScrollView } from "react-native-gesture-handler";
 import { useFont } from "@shopify/react-native-skia";
 import { CartesianChart, Line } from "victory-native";
+import { useMemo, useState } from "react";
 import { useSensorData } from "@/src/lib/sensorData";
 import { useSocketStatus } from "@/src/lib/socketService";
 
@@ -27,8 +28,36 @@ export default function Sensor() {
   const metricUnit = selectedMetric === "humidity" ? "%" : "°C";
   const metricColor = selectedMetric === "humidity" ? "#1f77b4" : "red";
   const data = useSensorData(sensorLabel);
+  const [viewMode, setViewMode] = useState<"all" | "month">("all");
+  const [selectedMonth, setSelectedMonth] = useState<string | null>(null);
   const socketStatus = useSocketStatus();
   const isStale = socketStatus.state === "stale" || socketStatus.state === "error";
+
+  const months = useMemo(() => {
+    const uniqueMonths = new Set<string>();
+    data.forEach((point) => {
+      const date = new Date(point.time);
+      if (Number.isFinite(date.getTime())) {
+        uniqueMonths.add(date.toISOString().slice(0, 7));
+      }
+    });
+    return Array.from(uniqueMonths).sort();
+  }, [data]);
+
+  const activeMonth = selectedMonth ?? months[months.length - 1] ?? null;
+  const filteredData = useMemo(() => {
+    if (viewMode === "all" || !activeMonth) {
+      return data;
+    }
+
+    return data.filter((point) => {
+      const date = new Date(point.time);
+      if (!Number.isFinite(date.getTime())) {
+        return false;
+      }
+      return date.toISOString().startsWith(activeMonth);
+    });
+  }, [data, viewMode, activeMonth]);
 
   const font = useFont(
     require("@expo-google-fonts/inter/400Regular/Inter_400Regular.ttf"),
@@ -49,9 +78,65 @@ export default function Sensor() {
           Stale: displaying last known values while reconnecting.
         </Text>
       ) : null}
+      <View style={{ flexDirection: "row", marginBottom: 12, gap: 8 }}>
+        <Pressable
+          onPress={() => setViewMode("all")}
+          style={({ pressed }) => ({
+            paddingVertical: 6,
+            paddingHorizontal: 12,
+            borderRadius: 16,
+            backgroundColor: viewMode === "all" ? "#222" : "#eee",
+            opacity: pressed ? 0.7 : 1,
+          })}
+        >
+          <Text style={{ color: viewMode === "all" ? "#fff" : "#222" }}>
+            All
+          </Text>
+        </Pressable>
+        <Pressable
+          onPress={() => setViewMode("month")}
+          style={({ pressed }) => ({
+            paddingVertical: 6,
+            paddingHorizontal: 12,
+            borderRadius: 16,
+            backgroundColor: viewMode === "month" ? "#222" : "#eee",
+            opacity: pressed ? 0.7 : 1,
+          })}
+        >
+          <Text style={{ color: viewMode === "month" ? "#fff" : "#222" }}>
+            Monthly
+          </Text>
+        </Pressable>
+      </View>
+      {viewMode === "month" ? (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={{ gap: 8, paddingBottom: 8 }}
+        >
+          {months.map((month) => {
+            const isActive = month === activeMonth;
+            return (
+              <Pressable
+                key={month}
+                onPress={() => setSelectedMonth(month)}
+                style={({ pressed }) => ({
+                  paddingVertical: 6,
+                  paddingHorizontal: 12,
+                  borderRadius: 14,
+                  backgroundColor: isActive ? "#1f77b4" : "#f1f1f1",
+                  opacity: pressed ? 0.7 : 1,
+                })}
+              >
+                <Text style={{ color: isActive ? "#fff" : "#333" }}>{month}</Text>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+      ) : null}
       <View style={{ height: 300 }}>
         <CartesianChart
-          data={data}
+          data={filteredData}
           xKey="time"
           yKeys={[selectedMetric]}
           axisOptions={{
@@ -76,7 +161,7 @@ export default function Sensor() {
             {metricLabel}
           </Text>
         </View>
-        {[...data].reverse().map((point, index) => (
+        {[...filteredData].reverse().map((point, index) => (
           <View
             key={`${point.time}-${index}`}
             style={{

@@ -79,7 +79,7 @@ const hydrateHistory = async (label: string) => {
 
   try {
     const response = await fetch(
-      `${backendUrl}/history/${encodeURIComponent(label)}?hours=24&limit=100`,
+      `${backendUrl}/history/${encodeURIComponent(label)}?hours=24`,
       {
         method: "GET",
         headers: {

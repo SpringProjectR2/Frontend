@@ -17,7 +17,7 @@ export default function Sensor({ label }: Props) {
   const isStale = socketStatus.state === 'stale' || socketStatus.state === 'error';
 
   return (
-    <View style={{ minHeight: 320 }}>
+    <View style={{ minHeight: 320, backgroundColor: '#ffffff', borderRadius: 12, marginBottom: 12 }}>
       <View style={{ paddingHorizontal: 8, paddingTop: 4, paddingBottom: 8 }}>
         <Text style={{ fontSize: 16, fontWeight: '600' }}>{label}</Text>
         <Text style={{ fontSize: 14, color: '#666' }}>
