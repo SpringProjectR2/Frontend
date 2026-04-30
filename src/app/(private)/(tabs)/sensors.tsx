@@ -1,12 +1,23 @@
 import { useCallback, useEffect, useState } from "react";
-import { ActivityIndicator, Pressable, ScrollView, Text, View } from "react-native";
+import {
+  ActivityIndicator,
+  Pressable,
+  ScrollView,
+  Text,
+  View,
+} from "react-native";
 
 import Sensor from "@/src/components/Sensor";
 import { getAccessToken } from "@/src/lib/auth";
 import { useBackendConfig } from "@/src/lib/backendConfig";
+import { useTheme } from "@/src/context/theme";
+import { lightTheme, darkTheme } from "@/src/theme/colors";
 
 export default function Sensors() {
-  const { backendUrl } = useBackendConfig();
+  const { backendUrl, hasConfirmedConnection } = useBackendConfig();
+  const { theme } = useTheme();
+  const colors = theme === "dark" ? darkTheme : lightTheme;
+
   const [sensorLabels, setSensorLabels] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -45,9 +56,10 @@ export default function Sensors() {
             detail?: string;
             message?: string;
           };
-          message = payload.error ?? payload.detail ?? payload.message ?? message;
+          message =
+            payload.error ?? payload.detail ?? payload.message ?? message;
         } catch {
-          // Keep default message when response body is not JSON.
+          // ignore JSON parse errors
         }
 
         setErrorMessage(message);
@@ -57,8 +69,9 @@ export default function Sensors() {
 
       const payload = (await response.json()) as unknown;
       const macs = Array.isArray(payload)
-        ? payload.filter((value): value is string => typeof value === "string")
+        ? payload.filter((v): v is string => typeof v === "string")
         : [];
+
       setSensorLabels(macs);
     } catch {
       setErrorMessage("Unable to reach the server.");
@@ -69,45 +82,78 @@ export default function Sensors() {
   }, [backendUrl]);
 
   useEffect(() => {
-    loadSensors();
-  }, [loadSensors]);
+    if (hasConfirmedConnection) {
+      loadSensors();
+    }
+  }, [loadSensors, hasConfirmedConnection]);
+
+  if (!hasConfirmedConnection) {
+    return (
+      <View
+        style={{
+          flex: 1,
+          justifyContent: "center",
+          alignItems: "center",
+          backgroundColor: colors.background,
+        }}
+      >
+        <Text style={{ color: colors.text }}>
+          Connecting to backend...
+        </Text>
+      </View>
+    );
+  }
 
   return (
-    <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 16 }}>
-      {isLoading ? (
+    <ScrollView
+      style={{ flex: 1, backgroundColor: colors.background }}
+      contentContainerStyle={{ paddingBottom: 16 }}
+    >
+      {isLoading && (
         <View style={{ paddingTop: 24, alignItems: "center" }}>
-          <ActivityIndicator color="#111111" />
+          <ActivityIndicator color={colors.text} />
         </View>
-      ) : null}
+      )}
 
-      {!isLoading && errorMessage ? (
+      {!isLoading && errorMessage && (
         <View style={{ paddingHorizontal: 12, paddingTop: 16, gap: 12 }}>
-          <Text style={{ color: "#a40000", fontSize: 14 }}>{errorMessage}</Text>
+          <Text style={{ color: "#a40000", fontSize: 14 }}>
+            {errorMessage}
+          </Text>
+
           <Pressable
             onPress={loadSensors}
-            style={{
+            style={({ pressed }) => ({
               borderWidth: 1,
-              borderColor: "#000000",
+              borderColor: colors.border,
               borderRadius: 8,
               height: 40,
               justifyContent: "center",
               alignItems: "center",
-            }}
+              backgroundColor: pressed
+                ? colors.border
+                : colors.background,
+            })}
           >
-            <Text style={{ fontWeight: "600" }}>Retry</Text>
+            <Text style={{ fontWeight: "600", color: colors.text }}>
+              Retry
+            </Text>
           </Pressable>
         </View>
-      ) : null}
+      )}
 
-      {!isLoading && !errorMessage && sensorLabels.length === 0 ? (
+      {!isLoading && !errorMessage && sensorLabels.length === 0 && (
         <View style={{ paddingHorizontal: 12, paddingTop: 16 }}>
-          <Text style={{ color: "#444444", fontSize: 14 }}>No sensors found.</Text>
+          <Text style={{ color: colors.text, opacity: 0.7, fontSize: 14 }}>
+            No sensors found.
+          </Text>
         </View>
-      ) : null}
+      )}
 
-      {!isLoading && !errorMessage
-        ? sensorLabels.map((label) => <Sensor key={label} label={label} />)
-        : null}
+      {!isLoading && !errorMessage &&
+        sensorLabels.map((label) => (
+          <Sensor key={label} label={label} />
+        ))}
     </ScrollView>
   );
 }

@@ -12,11 +12,18 @@ import {
   TextInput,
   View,
 } from "react-native";
+
 import { setBackendUrl, useBackendConfig } from "@/src/lib/backendConfig";
+import { useTheme } from "@/src/context/theme";
+import { lightTheme, darkTheme } from "@/src/theme/colors";
 
 export default function Connect() {
   const router = useRouter();
   const { backendUrl } = useBackendConfig();
+  const { theme } = useTheme();
+
+  const colors = theme === "dark" ? darkTheme : lightTheme;
+
   const [address, setAddress] = useState(backendUrl ?? "");
   const [isSaving, setIsSaving] = useState(false);
 
@@ -24,7 +31,10 @@ export default function Connect() {
     setAddress(backendUrl ?? "");
   }, [backendUrl]);
 
-  const canSave = useMemo(() => address.trim().length > 0 && !isSaving, [address, isSaving]);
+  const canSave = useMemo(
+    () => address.trim().length > 0 && !isSaving,
+    [address, isSaving]
+  );
 
   const handleSave = async () => {
     setIsSaving(true);
@@ -32,7 +42,10 @@ export default function Connect() {
       await setBackendUrl(address);
       router.replace("/login");
     } catch {
-      Alert.alert("Invalid address", "Enter an IP or URL like 192.168.0.10:5000");
+      Alert.alert(
+        "Invalid address",
+        "Enter an IP or URL like 192.168.0.10:5000"
+      );
     } finally {
       setIsSaving(false);
     }
@@ -40,7 +53,7 @@ export default function Connect() {
 
   return (
     <KeyboardAvoidingView
-      style={styles.wrapper}
+      style={[styles.wrapper, { backgroundColor: colors.background }]}
       behavior={Platform.OS === "ios" ? "padding" : "height"}
     >
       <ScrollView
@@ -49,26 +62,46 @@ export default function Connect() {
         keyboardShouldPersistTaps="handled"
       >
         <View style={styles.form}>
-          <Text style={styles.title}>Backend IP Address</Text>
+          <Text style={[styles.title, { color: colors.text }]}>
+            Backend IP Address
+          </Text>
 
           <TextInput
             value={address}
             onChangeText={setAddress}
             placeholder="192.168.0.10:5000"
+            placeholderTextColor={colors.border}
             autoCapitalize="none"
             autoCorrect={false}
             keyboardType="url"
-            style={styles.input}
+            style={[
+              styles.input,
+              {
+                color: colors.text,
+                borderColor: colors.border,
+                backgroundColor: colors.card,
+              },
+            ]}
             returnKeyType="done"
             onSubmitEditing={handleSave}
           />
 
           <Pressable
-            style={[styles.button, !canSave && styles.buttonDisabled]}
+            style={[
+              styles.button,
+              { backgroundColor: colors.text },
+              !canSave && styles.buttonDisabled,
+            ]}
             onPress={handleSave}
             disabled={!canSave}
           >
-            {isSaving ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Connect</Text>}
+            {isSaving ? (
+              <ActivityIndicator color={colors.background} />
+            ) : (
+              <Text style={[styles.buttonText, { color: colors.background }]}>
+                Connect
+              </Text>
+            )}
           </Pressable>
         </View>
       </ScrollView>
@@ -94,28 +127,18 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: "700",
-    color: "#111111",
-  },
-  subtitle: {
-    fontSize: 15,
-    color: "#555555",
-    marginBottom: 4,
   },
   input: {
-    color: "#000000",
     borderWidth: 1,
-    borderColor: "#000000",
     borderRadius: 8,
     paddingHorizontal: 12,
     paddingVertical: 10,
     fontSize: 16,
-    backgroundColor: "#f9fafb",
   },
   button: {
     marginTop: 8,
     height: 44,
     borderRadius: 8,
-    backgroundColor: "#111111",
     justifyContent: "center",
     alignItems: "center",
   },
@@ -123,7 +146,6 @@ const styles = StyleSheet.create({
     opacity: 0.6,
   },
   buttonText: {
-    color: "#ffffff",
     fontSize: 16,
     fontWeight: "600",
   },

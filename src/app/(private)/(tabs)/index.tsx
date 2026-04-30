@@ -3,11 +3,17 @@ import { SymbolView } from "expo-symbols";
 import { useState } from "react";
 import { Platform, Pressable, ScrollView, Text, View } from "react-native";
 import { removeAlertActivity, useAlertActivity } from "@/src/lib/alertActivity";
+import { useTheme } from "@/src/context/theme";
+import { lightTheme, darkTheme } from "@/src/theme/colors";
 
 export default function Index() {
+  const { theme } = useTheme();
+  const colors = theme === "dark" ? darkTheme : lightTheme;
+
   const activityItems = useAlertActivity();
   const [showAllActivity, setShowAllActivity] = useState(false);
   const [activityContentHeight, setActivityContentHeight] = useState(0);
+
   const collapsedActivityHeight = 220;
   const hasHiddenActivity =
     !showAllActivity && activityContentHeight > collapsedActivityHeight + 1;
@@ -15,7 +21,10 @@ export default function Index() {
   const formatActivityDateTime = (timestamp: number) => {
     const date = new Date(timestamp);
     const datePart = date.toLocaleDateString();
-    const timePart = date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    const timePart = date.toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
     return `${datePart} ${timePart}`;
   };
 
@@ -36,7 +45,7 @@ export default function Index() {
 
   return (
     <ScrollView
-      style={{ flex: 1 }}
+      style={{ flex: 1, backgroundColor: colors.background }}
       contentContainerStyle={{
         justifyContent: "flex-start",
         alignItems: "center",
@@ -48,18 +57,19 @@ export default function Index() {
         style={{
           width: "90%",
           borderWidth: 1,
-          borderColor: "#d9d9d9",
+          borderColor: colors.border,
           borderRadius: 10,
           padding: 12,
-          backgroundColor: "#ffffff",
+          backgroundColor: colors.card ?? colors.background,
           gap: 8,
         }}
       >
-        <Text style={{ fontSize: 18, fontWeight: "600" }}>
+        <Text style={{ fontSize: 18, fontWeight: "600", color: colors.text }}>
           Activity ({activityItems.length})
         </Text>
+
         {activityItems.length === 0 ? (
-          <Text style={{ color: "#444444" }}>No activity yet</Text>
+          <Text style={{ color: colors.text }}>No activity yet</Text>
         ) : (
           <>
             <View
@@ -80,22 +90,51 @@ export default function Index() {
                     key={item.id}
                     style={{
                       borderWidth: 1,
-                      borderColor: "#eeeeee",
+                      borderColor: colors.border,
                       borderRadius: 8,
                       padding: 8,
                       gap: 4,
+                      backgroundColor: colors.background,
                     }}
                   >
-                    <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                    <View
+                      style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        gap: 6,
+                      }}
+                    >
                       {renderWarningIcon()}
-                      <Text style={{ fontWeight: "600" }}>Test alert</Text>
+                      <Text
+                        style={{
+                          fontWeight: "600",
+                          color: colors.text,
+                        }}
+                      >
+                        Test alert
+                      </Text>
                     </View>
-                    <Text style={{ color: "#4a4a4a", fontSize: 12 }}>
+
+                    <Text
+                      style={{
+                        color: colors.text,
+                        fontSize: 12,
+                        opacity: 0.8,
+                      }}
+                    >
                       more info more info more info more info more info more info more info
                     </Text>
-                    <Text style={{ color: "#666666", fontSize: 12 }}>
+
+                    <Text
+                      style={{
+                        color: colors.text,
+                        fontSize: 12,
+                        opacity: 0.6,
+                      }}
+                    >
                       {formatActivityDateTime(item.createdAt)}
                     </Text>
+
                     <Pressable
                       onPress={() => removeAlertActivity(item.id)}
                       accessibilityRole="button"
@@ -107,19 +146,28 @@ export default function Index() {
                         minHeight: 30,
                         borderRadius: 8,
                         borderWidth: 1,
-                        borderColor: "#d9d9d9",
-                        backgroundColor: pressed ? "#f2f2f2" : "#ffffff",
+                        borderColor: colors.border,
+                        backgroundColor: pressed
+                          ? colors.border
+                          : colors.background,
                         justifyContent: "center",
                       })}
                     >
-                      <Text style={{ fontSize: 12, fontWeight: "600", color: "#222222" }}>
+                      <Text
+                        style={{
+                          fontSize: 12,
+                          fontWeight: "600",
+                          color: colors.text,
+                        }}
+                      >
                         Check alert
                       </Text>
                     </Pressable>
                   </View>
                 ))}
               </View>
-              {hasHiddenActivity ? (
+
+              {hasHiddenActivity && (
                 <View
                   pointerEvents="none"
                   style={{
@@ -131,14 +179,16 @@ export default function Index() {
                     justifyContent: "flex-end",
                   }}
                 >
-                  <View style={{ flex: 1, backgroundColor: "rgba(255,255,255,0)" }} />
-                  <View style={{ flex: 1, backgroundColor: "rgba(255,255,255,0.2)" }} />
-                  <View style={{ flex: 1, backgroundColor: "rgba(255,255,255,0.45)" }} />
-                  <View style={{ flex: 1, backgroundColor: "rgba(255,255,255,0.75)" }} />
+                  <View style={{ flex: 1, backgroundColor: "transparent" }} />
+                  <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.05)" }} />
+                  <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.1)" }} />
+                  <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.2)" }} />
                 </View>
-              ) : null}
+              )}
+
             </View>
-            {hasHiddenActivity ? (
+
+            {hasHiddenActivity && (
               <Pressable
                 onPress={() => setShowAllActivity(true)}
                 accessibilityRole="button"
@@ -150,16 +200,24 @@ export default function Index() {
                   minHeight: 30,
                   borderRadius: 8,
                   borderWidth: 1,
-                  borderColor: "#d9d9d9",
-                  backgroundColor: pressed ? "#f2f2f2" : "#ffffff",
+                  borderColor: colors.border,
+                  backgroundColor: pressed
+                    ? colors.border
+                    : colors.background,
                   justifyContent: "center",
                 })}
               >
-                <Text style={{ fontSize: 12, fontWeight: "600", color: "#222222" }}>
+                <Text
+                  style={{
+                    fontSize: 12,
+                    fontWeight: "600",
+                    color: colors.text,
+                  }}
+                >
                   Show all activity
                 </Text>
               </Pressable>
-            ) : null}
+            )}
           </>
         )}
       </View>

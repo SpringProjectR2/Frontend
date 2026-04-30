@@ -14,16 +14,24 @@ import {
   TextInput,
   View,
 } from "react-native";
+
 import { useAuth } from "@/src/lib/auth";
 import {
   resetConnectionConfirmation,
   useBackendConfig,
 } from "@/src/lib/backendConfig";
 
+import { useTheme } from "@/src/context/theme";
+import { lightTheme, darkTheme } from "@/src/theme/colors";
+
 export default function Login() {
   const router = useRouter();
   const { login } = useAuth();
   const { backendUrl } = useBackendConfig();
+  const { theme } = useTheme();
+
+  const colors = theme === "dark" ? darkTheme : lightTheme;
+
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -40,6 +48,7 @@ export default function Login() {
     }
 
     setIsLoading(true);
+
     try {
       if (!backendUrl) {
         Alert.alert("Configuration error", "Backend URL is not configured.");
@@ -65,6 +74,7 @@ export default function Login() {
       const payload = (await response.json()) as {
         access_token?: string;
       };
+
       if (!payload.access_token) {
         Alert.alert("Login failed", "Server did not return an access token.");
         return;
@@ -81,7 +91,7 @@ export default function Login() {
 
   return (
     <KeyboardAvoidingView
-      style={styles.wrapper}
+      style={[styles.wrapper, { backgroundColor: colors.background }]}
       behavior={Platform.OS === "ios" ? "padding" : "height"}
     >
       <ScrollView
@@ -92,54 +102,85 @@ export default function Login() {
         <View style={styles.form}>
           <View style={styles.iconWrapper}>
             {Platform.OS === "ios" ? (
-              <SymbolView name="sensor" size={88} tintColor="#000000" />
+              <SymbolView name="sensor" size={88} tintColor={colors.text} />
             ) : (
-              <MaterialIcons name="sensors" size={88} color="#000000" />
+              <MaterialIcons name="sensors" size={88} color={colors.text} />
             )}
           </View>
-          <Text style={styles.title}>Username</Text>
+
+          <Text style={[styles.title, { color: colors.text }]}>
+            Username
+          </Text>
           <TextInput
             value={username}
             onChangeText={setUsername}
-            placeholder=""
             autoCapitalize="none"
-            style={styles.input}
+            style={[
+              styles.input,
+              {
+                color: colors.text,
+                borderColor: colors.border,
+                backgroundColor: colors.card,
+              },
+            ]}
             returnKeyType="next"
           />
-          <Text style={styles.title}>Password</Text>
+
+          <Text style={[styles.title, { color: colors.text }]}>
+            Password
+          </Text>
           <TextInput
             value={password}
             onChangeText={setPassword}
-            placeholder=""
             secureTextEntry
-            style={styles.input}
+            style={[
+              styles.input,
+              {
+                color: colors.text,
+                borderColor: colors.border,
+                backgroundColor: colors.card,
+              },
+            ]}
             returnKeyType="done"
             onSubmitEditing={handleLogin}
           />
+
           <Pressable
-            style={[styles.button, isLoading && styles.buttonDisabled]}
+            style={[
+              styles.button,
+              { backgroundColor: colors.text },
+              isLoading && styles.buttonDisabled,
+            ]}
             onPress={handleLogin}
             disabled={isLoading}
           >
             {isLoading ? (
-              <ActivityIndicator color="#fff" />
+              <ActivityIndicator color={colors.background} />
             ) : (
-              <Text style={styles.buttonText}>Sign in</Text>
+              <Text style={[styles.buttonText, { color: colors.background }]}>
+                Sign in
+              </Text>
             )}
           </Pressable>
+
           <Pressable
-            style={[styles.linkButton, isLoading && styles.buttonDisabled]}
+            style={styles.linkButton}
             onPress={() => router.push("/register" as Href)}
             disabled={isLoading}
           >
-            <Text style={styles.linkButtonText}>Register</Text>
+            <Text style={[styles.linkButtonText, { color: colors.text }]}>
+              Register
+            </Text>
           </Pressable>
+
           <Pressable
-            style={[styles.linkButton, isLoading && styles.buttonDisabled]}
+            style={styles.linkButton}
             onPress={handleBackToConnect}
             disabled={isLoading}
           >
-            <Text style={styles.linkButtonText}>Back to Connect</Text>
+            <Text style={[styles.linkButtonText, { color: colors.text }]}>
+              Back to Connect
+            </Text>
           </Pressable>
         </View>
       </ScrollView>
@@ -172,41 +213,33 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   input: {
-    color: "#000000",
     borderWidth: 1,
-    borderColor: "#000000",
     borderRadius: 8,
     paddingHorizontal: 12,
     paddingVertical: 10,
     fontSize: 16,
-    backgroundColor: "#f9fafb",
   },
   button: {
     marginTop: 6,
     height: 44,
     borderRadius: 8,
-    backgroundColor: "#ffffff",
     justifyContent: "center",
     alignItems: "center",
-    borderWidth: 1,
-    borderColor: "#000000",
   },
   buttonDisabled: {
     opacity: 0.7,
   },
   buttonText: {
-    color: "#000000",
     fontSize: 16,
     fontWeight: "600",
   },
   linkButton: {
-    marginTop: 2,
+    marginTop: 4,
     height: 40,
     justifyContent: "center",
     alignItems: "center",
   },
   linkButtonText: {
-    color: "#000000",
     fontSize: 15,
     fontWeight: "500",
     textDecorationLine: "underline",

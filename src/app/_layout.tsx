@@ -1,11 +1,29 @@
-import { Inter_400Regular } from '@expo-google-fonts/inter';
-import { useFonts } from 'expo-font';
-import * as Notifications from 'expo-notifications';
-import { Stack } from 'expo-router';
-import { useEffect } from 'react';
-import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { AuthProvider, useAuth } from '@/src/lib/auth';
-import { isNotificationsEnabled } from '@/src/lib/notificationSettings';
+import { Inter_400Regular } from "@expo-google-fonts/inter";
+import { useFonts } from "expo-font";
+import * as Notifications from "expo-notifications";
+import { Stack, useRouter, useSegments } from "expo-router";
+import { useEffect } from "react";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
+
+import { AuthProvider, useAuth } from "@/src/lib/auth";
+import {
+  hydrateBackendConfig,
+  useBackendConfig,
+} from "@/src/lib/backendConfig";
+
+import {
+  bootstrapSocket,
+  disconnectSocket,
+} from "@/src/lib/socketService";
+
+import { ThemeProvider } from "@/src/context/theme";
+
+import {
+  hydrateSettings,
+  useSettings,
+} from "@/src/lib/settings";
+
+import { isNotificationsEnabled } from "@/src/lib/notificationSettings";
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -15,11 +33,40 @@ Notifications.setNotificationHandler({
     shouldShowList: true,
   }),
 });
-import {
-  hydrateBackendConfig,
-  useBackendConfig,
-} from '@/src/lib/backendConfig';
-import { bootstrapSocket, disconnectSocket } from '@/src/lib/socketService';
+
+function NavigationGuard() {
+  const router = useRouter();
+  const segments = useSegments();
+
+  const { isLoggedIn } = useAuth();
+  const { hasConfirmedConnection } = useBackendConfig();
+
+  useEffect(() => {
+    if (!hasConfirmedConnection) {
+      if (segments[0] !== "connect") {
+        router.replace("/connect");
+      }
+      return;
+    }
+
+    if (!isLoggedIn) {
+      if (segments[0] !== "login" && segments[0] !== "register") {
+        router.replace("/login");
+      }
+      return;
+    }
+
+    if (
+      segments[0] === "login" ||
+      segments[0] === "connect" ||
+      segments[0] === "register"
+    ) {
+      router.replace("/(private)/(tabs)");
+    }
+  }, [isLoggedIn, hasConfirmedConnection, segments]);
+
+  return null;
+}
 
 function RootNavigator() {
   const { isLoggedIn } = useAuth();
@@ -28,26 +75,26 @@ function RootNavigator() {
   useEffect(() => {
     if (isLoggedIn && hasConfirmedConnection && backendUrl) {
       bootstrapSocket();
-      return;
+    } else {
+      disconnectSocket();
     }
-
-    disconnectSocket();
   }, [backendUrl, hasConfirmedConnection, isLoggedIn]);
 
   return (
-    <Stack>
-      <Stack.Protected guard={!hasConfirmedConnection}>
-        <Stack.Screen name="connect" options={{ headerShown: false }} />
-      </Stack.Protected>
-      <Stack.Protected guard={hasConfirmedConnection && !isLoggedIn}>
-        <Stack.Screen name="login" options={{ headerShown: false }} />
-        <Stack.Screen name="register" options={{ headerShown: false }} />
-      </Stack.Protected>
-      <Stack.Protected guard={hasConfirmedConnection && isLoggedIn}>
-        <Stack.Screen name="(private)/(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="(private)/sensor" options={{ title: "Sensor" }} />
-      </Stack.Protected>
-    </Stack>
+    <>
+      <NavigationGuard />
+
+      <Stack screenOptions={{ headerShown: false }}>
+        <Stack.Screen name="connect" />
+        <Stack.Screen name="login" />
+        <Stack.Screen name="register" />
+        <Stack.Screen name="(private)/(tabs)" />
+        <Stack.Screen
+          name="(private)/sensor"
+          options={{ title: "Sensor" }}
+        />
+      </Stack>
+    </>
   );
 }
 
@@ -55,40 +102,43 @@ export default function RootLayout() {
   const [fontsLoaded] = useFonts({
     Inter_400Regular,
   });
-  const { hydrated } = useBackendConfig();
+
+  const { hydrated: backendHydrated } = useBackendConfig();
+  const { hydrated: settingsHydrated } = useSettings();
 
   useEffect(() => {
     hydrateBackendConfig();
+    hydrateSettings();
   }, []);
 
   useEffect(() => {
-    const requestNotificationPermission = async () => {
-      if (!isNotificationsEnabled()) {
-        return;
-      }
+    const requestPermission = async () => {
+      if (!isNotificationsEnabled()) return;
 
       try {
         const { status } = await Notifications.getPermissionsAsync();
-        if (status !== 'granted') {
+        if (status !== "granted") {
           await Notifications.requestPermissionsAsync();
         }
-      } catch (error) {
-        console.warn('Unable to request notification permissions', error);
+      } catch (err) {
+        console.warn("Notification permission error:", err);
       }
     };
 
-    requestNotificationPermission();
+    requestPermission();
   }, []);
 
-  if (!fontsLoaded || !hydrated) {
+  if (!fontsLoaded || !backendHydrated || !settingsHydrated) {
     return null;
   }
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <AuthProvider>
-        <RootNavigator />
-      </AuthProvider>
+      <ThemeProvider>
+        <AuthProvider>
+          <RootNavigator />
+        </AuthProvider>
+      </ThemeProvider>
     </GestureHandlerRootView>
   );
 }

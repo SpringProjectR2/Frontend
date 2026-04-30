@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@expo-google-fonts/inter": "^0.4.2",
+    "@expo/react-native-action-sheet": "^4.1.1",
     "@expo/vector-icons": "^15.0.3",
     "@react-native-async-storage/async-storage": "2.2.0",
     "@react-navigation/bottom-tabs": "^7.4.0",
@@ -47,6 +48,7 @@
     "victory-native": "^41.20.2"
   },
   "devDependencies": {
+    "@babel/plugin-transform-typescript": "^7.28.6",
     "@types/react": "~19.2.10",
     "eslint": "^9.25.0",
     "eslint-config-expo": "~55.0.0",

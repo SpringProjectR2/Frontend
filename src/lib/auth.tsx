@@ -3,7 +3,7 @@ import { createContext, ReactNode, useContext, useMemo, useState } from "react";
 type AuthContextValue = {
   isLoggedIn: boolean;
   accessToken: string | null;
-  login: (token: string) => void;
+  login: (token?: string) => void;
   logout: () => void;
 };
 
@@ -21,16 +21,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     () => ({
       isLoggedIn,
       accessToken,
-      login: (token: string) => {
-        currentAccessToken = token;
-        setAccessToken(token);
+      login: (token?: string) => {
+        const resolved = token ?? "dev-token"; // fallback for SKIP_LOGIN_FETCH
+        currentAccessToken = resolved;
+        setAccessToken(resolved);
       },
       logout: () => {
         currentAccessToken = null;
         setAccessToken(null);
       },
     }),
-    [accessToken, isLoggedIn],
+    [accessToken],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
@@ -38,10 +39,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
 export function useAuth() {
   const context = useContext(AuthContext);
-
   if (!context) {
     throw new Error("useAuth must be used within an AuthProvider");
   }
-
   return context;
 }
